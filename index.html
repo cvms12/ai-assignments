@@ -242,8 +242,9 @@
                             Generation Engine
                         </label>
                         <select id="engine-select" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 transition">
-                            <option value="auto" selected>Auto (AI if available, else Free Open-Web)</option>
-                            <option value="free-open">100% Free Open-Web Engine (No API Key)</option>
+                            <option value="auto" selected>Auto (Gemini AI → Free Open-AI + Web)</option>
+                            <option value="free-ai">Free Open-AI + Web Search (No API Key)</option>
+                            <option value="free-open">Instant Local + Wikipedia Engine (Offline-Ready)</option>
                             <option value="gemini-ai">Gemini AI Engine (Runtime / Custom Key)</option>
                         </select>
                     </div>
@@ -524,12 +525,14 @@
 
         function updateEngineBadge() {
             const mode = els.engineSelect.value;
-            if (mode === 'free-open') {
-                els.modeBadge.textContent = '100% Keyless Open-Web';
+            if (mode === 'free-ai') {
+                els.modeBadge.textContent = 'Free Open-AI · No Key';
+            } else if (mode === 'free-open') {
+                els.modeBadge.textContent = 'Instant Web + Local';
             } else if (state.customApiKey || mode === 'gemini-ai') {
                 els.modeBadge.textContent = 'Gemini AI + Open-Web';
             } else {
-                els.modeBadge.textContent = 'Auto · Keyless Ready';
+                els.modeBadge.textContent = 'Auto · Free AI Ready';
             }
         }
         updateEngineBadge();
@@ -588,8 +591,160 @@
             return copy;
         }
 
+        // Gather live open-web curriculum context (Wikipedia + DuckDuckGo Instant Answer API)
+        async function fetchOpenWebCurriculumContext(topic, variantNum = 1) {
+            const sources = [];
+            let combinedContext = '';
+
+            // 1. Wikipedia Search + Extracts
+            try {
+                const searchAngles = [topic, `${topic} overview`, `${topic} examples`, `${topic} theory`];
+                const chosenQuery = variantNum === 1 ? topic : searchAngles[variantNum % searchAngles.length];
+                const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(chosenQuery)}&format=json&origin=*&srlimit=6`;
+                const searchRes = await fetch(searchUrl);
+                const searchData = await searchRes.json();
+                const hits = shuffleArray(searchData?.query?.search || []);
+
+                if (hits.length > 0) {
+                    const primaryHit = hits.find(h => h.title.toLowerCase().includes(topic.toLowerCase())) || hits[0];
+                    const secondaryHit = hits.find(h => h.title !== primaryHit.title) || hits[0];
+                    const extractUrl = `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&exchars=3200&titles=${encodeURIComponent(primaryHit.title + '|' + secondaryHit.title)}&format=json&origin=*`;
+                    const extRes = await fetch(extractUrl);
+                    if (extRes.ok) {
+                        const extData = await extRes.json();
+                        const pages = Object.values(extData?.query?.pages || {});
+                        pages.forEach(p => {
+                            if (p.extract) {
+                                combinedContext += `\n[Source: ${p.title}]\n${p.extract.slice(0, 1600)}\n`;
+                                sources.push({
+                                    title: `Wikipedia: ${p.title}`,
+                                    uri: `https://en.wikipedia.org/wiki/${encodeURIComponent(p.title.replace(/ /g, '_'))}`
+                                });
+                            }
+                        });
+                    }
+                    hits.slice(0, 4).forEach(h => {
+                        if (!sources.some(s => s.title.includes(h.title))) {
+                            sources.push({
+                                title: `Wikipedia: ${h.title}`,
+                                uri: `https://en.wikipedia.org/wiki/${encodeURIComponent(h.title.replace(/ /g, '_'))}`
+                            });
+                        }
+                    });
+                }
+            } catch (e) {
+                console.warn('Wikipedia context fetch skipped:', e);
+            }
+
+            // 2. DuckDuckGo Instant Answer Open API (Zero API Key)
+            try {
+                const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(topic)}&format=json&no_html=1&skip_disambig=1`;
+                const ddgRes = await fetch(ddgUrl);
+                if (ddgRes.ok) {
+                    const ddgData = await ddgRes.json();
+                    if (ddgData.AbstractText) {
+                        combinedContext += `\n[Reference Summary: ${ddgData.Heading || topic}]\n${ddgData.AbstractText}\n`;
+                        if (ddgData.AbstractURL) {
+                            sources.push({
+                                title: ddgData.AbstractSource ? `${ddgData.AbstractSource}: ${ddgData.Heading || topic}` : topic,
+                                uri: ddgData.AbstractURL
+                            });
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('DuckDuckGo context fetch skipped:', e);
+            }
+
+            const uniqueSources = Array.from(new Map(sources.map(s => [s.uri, s])).values());
+            return { combinedContext: combinedContext.trim(), sources: uniqueSources };
+        }
+
         // =========================================================================
-        // 100% KEYLESS OPEN-WEB & PROCEDURAL CURRICULUM ENGINE (NO API KEY NEEDED)
+        // KEYLESS FREE OPEN-AI + WEB SEARCH ENGINE (POLLINATIONS AI + OPEN WEB)
+        // =========================================================================
+        async function generateFreeOpenAiAssignment(params) {
+            sessionMemory.generationCount += 1;
+            const variantNum = sessionMemory.generationCount;
+            const randomSeed = Math.floor(Math.random() * 999999) + 10000;
+
+            document.getElementById('loading-title').textContent = 'Searching Open Web & Querying Free AI...';
+            document.getElementById('loading-subtitle').textContent = 'Synthesizing fresh, topic-accurate questions without an API key';
+
+            const { combinedContext, sources } = params.useWebSearch
+                ? await fetchOpenWebCurriculumContext(params.topic, variantNum)
+                : { combinedContext: '', sources: [] };
+
+            const isMcq = params.format.includes('Multiple Choice');
+            const formatRule = isMcq
+                ? 'EVERY SINGLE QUESTION MUST be a Multiple Choice Question with 4 clearly labeled options (- **A)** ..., - **B)** ..., - **C)** ..., - **D)** ...) and exactly one unambiguous correct answer.'
+                : `Follow the requested format strictly: ${params.format}.`;
+
+            const systemPrompt = `You are an expert teacher and curriculum author. Generate a crisp, accurate, student-ready worksheet in Markdown.
+STRICT RULES:
+1. Stay 100% focused on the requested Topic: "${params.topic}". Never drift into unrelated topics.
+2. Match the Grade Level (${params.grade}) and Difficulty (${params.difficulty}).
+3. ${formatRule}
+4. Use clean LaTeX ($...$ or $$...$$) for math/science formulas. IMPORTANT: Never put raw currency '$' symbols inside $...$ math delimiters (write USD 25 instead of $25 inside math mode).
+5. Start directly with brief Student Instructions (Set #${variantNum}) and a 2-sentence Concept Overview, then numbered questions 1 to ${params.numQuestions}.
+6. ${params.includeAnswers
+    ? 'After all questions, output the exact separator line `===ANSWER_KEY===` on its own line, followed by numbered answers with clear step-by-step explanations.'
+    : 'Do NOT output an answer key.'}`;
+
+            const userPrompt = `Create a brand-new, randomized set of ${params.numQuestions} questions (Variation Seed #${randomSeed}) on:
+Topic: ${params.topic}
+Grade: ${params.grade}
+Difficulty: ${params.difficulty}
+Format: ${params.format}
+${params.instructions ? `Teacher Notes: ${params.instructions}` : ''}
+${combinedContext ? `\nUse these verified open-web educational facts for accuracy:\n${combinedContext.slice(0, 2800)}` : ''}`;
+
+            // Pollinations free keyless OpenAI-compatible text endpoint
+            const response = await fetch('https://text.pollinations.ai/openai', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: 'openai',
+                    seed: randomSeed,
+                    temperature: 0.9,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt }
+                    ]
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Free AI service returned HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            const rawMarkdown = data?.choices?.[0]?.message?.content;
+
+            if (!rawMarkdown || rawMarkdown.length < 80) {
+                throw new Error('Free AI returned an empty response.');
+            }
+
+            const parts = rawMarkdown.split('===ANSWER_KEY===');
+            const questionsMd = parts[0].trim();
+            const answersMd = parts[1] ? parts[1].trim() : '';
+
+            return {
+                id: Date.now().toString(),
+                createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · ' + new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+                topic: params.topic,
+                grade: params.grade,
+                difficulty: params.difficulty,
+                format: params.format,
+                questionsMd,
+                answersMd,
+                rawMarkdown,
+                sources
+            };
+        }
+
+        // =========================================================================
+        // INSTANT LOCAL + WIKIPEDIA ENGINE (OFFLINE-READY FALLBACK)
         // =========================================================================
         async function generateKeylessOpenWebAssignment(params) {
             sessionMemory.generationCount += 1;
@@ -1117,15 +1272,38 @@
             els.sourcesCard.classList.add('hidden');
             els.loadingState.classList.remove('hidden');
             els.btnGenerate.disabled = true;
+            document.getElementById('loading-title').textContent = 'Searching Web Curriculum & Drafting Questions...';
+            document.getElementById('loading-subtitle').textContent = 'Aligning problems with grade level and difficulty standards';
 
-            // If user explicitly chose Keyless Open-Web Engine, run it directly without calling any AI API
+            // 1. Direct Keyless Free Open-AI + Web Search mode
+            if (params.engineMode === 'free-ai') {
+                try {
+                    const aiAssignment = await generateFreeOpenAiAssignment(params);
+                    state.currentAssignment = aiAssignment;
+                    saveToHistory(aiAssignment);
+                    renderAssignment(aiAssignment);
+                    showToast('Generated via Free Open-AI + Web Search (No API Key)!', 'success');
+                } catch (freeAiErr) {
+                    console.warn('Free Open-AI fallback to Instant Web+Local:', freeAiErr);
+                    const localAssignment = await generateKeylessOpenWebAssignment(params);
+                    state.currentAssignment = localAssignment;
+                    saveToHistory(localAssignment);
+                    renderAssignment(localAssignment);
+                    showToast('Generated via Instant Open-Web Engine!', 'success');
+                } finally {
+                    els.btnGenerate.disabled = false;
+                }
+                return;
+            }
+
+            // 2. Direct Instant Local + Wikipedia mode
             if (params.engineMode === 'free-open') {
                 try {
                     const assignmentObj = await generateKeylessOpenWebAssignment(params);
                     state.currentAssignment = assignmentObj;
                     saveToHistory(assignmentObj);
                     renderAssignment(assignmentObj);
-                    showToast('Generated fresh shuffled assignment (No API Key used)!', 'success');
+                    showToast('Generated fresh shuffled assignment!', 'success');
                 } catch (err) {
                     els.loadingState.classList.add('hidden');
                     els.emptyState.classList.remove('hidden');
@@ -1235,18 +1413,29 @@ ${params.instructions ? `- Additional Focus / Curriculum Notes: ${params.instruc
                 showToast('Assignment generated with Gemini AI!', 'success');
 
             } catch (error) {
-                // Automatic Keyless Fallback: If hosted standalone without an API key (or API quota/key error),
-                // seamlessly fall back to the 100% Free Open-Web Engine so it ALWAYS works!
+                // Automatic Cascade Fallback in Auto Mode:
+                // Step A: Try Keyless Free Open-AI + Web Search (Pollinations + Wikipedia/DuckDuckGo)
+                // Step B: If unreachable/offline, fall back to Instant Local + Wikipedia Procedural Engine
                 if (params.engineMode === 'auto') {
                     try {
-                        const fallbackAssignment = await generateKeylessOpenWebAssignment(params);
-                        state.currentAssignment = fallbackAssignment;
-                        saveToHistory(fallbackAssignment);
-                        renderAssignment(fallbackAssignment);
-                        showToast('Generated via Free Open-Web Engine (No API Key needed)!', 'success');
+                        const freeAiAssignment = await generateFreeOpenAiAssignment(params);
+                        state.currentAssignment = freeAiAssignment;
+                        saveToHistory(freeAiAssignment);
+                        renderAssignment(freeAiAssignment);
+                        showToast('Generated via Free Open-AI + Web Search (No API Key needed)!', 'success');
                         return;
-                    } catch (fallbackErr) {
-                        console.error('Fallback engine failed:', fallbackErr);
+                    } catch (freeAiErr) {
+                        console.warn('Free Open-AI fallback to Instant Web+Local:', freeAiErr);
+                        try {
+                            const fallbackAssignment = await generateKeylessOpenWebAssignment(params);
+                            state.currentAssignment = fallbackAssignment;
+                            saveToHistory(fallbackAssignment);
+                            renderAssignment(fallbackAssignment);
+                            showToast('Generated via Instant Open-Web Engine!', 'success');
+                            return;
+                        } catch (fallbackErr) {
+                            console.error('Fallback engine failed:', fallbackErr);
+                        }
                     }
                 }
                 console.error('Assignment Generation Error:', error);
