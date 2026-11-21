@@ -649,18 +649,58 @@
                         }
                     });
                 }
-            } catch (e) {
-                console.warn('Open-web Wikipedia fetch skipped:', e);
+            } catch (wikiErr) {
+                console.warn('Open-web Wikipedia fetch warning:', wikiErr);
             }
 
-            // 2. Detect subject domain for procedural problem synthesis
+            // Randomized Bloom's Taxonomy question templates for conceptual synthesis
+            const bloomTemplates = shuffleArray([
+                {
+                    label: 'Conceptual Definition',
+                    q: (t, g) => `Define the core principles of **${t}** in your own words at a **${g}** level, and provide one concrete real-world example.`,
+                    a: (t) => `*Expected Answer:* Clear, accurate definition of **${t}** identifying its primary components/rules, supported by a valid real-world application.`
+                },
+                {
+                    label: 'Compare & Contrast',
+                    q: (t) => `Compare two key mechanisms, methods, or sub-concepts within **${t}**. How are they similar, and under what conditions does one apply over the other?`,
+                    a: (t) => `*Expected Answer:* Identifies two distinct aspects of **${t}**, accurately contrasts their properties/use-cases, and notes at least one shared foundational rule.`
+                },
+                {
+                    label: 'Error Analysis',
+                    q: (t) => `A student claims that **${t}** always produces the exact same outcome regardless of initial conditions. Identify the flaw in this reasoning and explain why.`,
+                    a: (t) => `*Expected Answer:* Explains the variables, constraints, or boundary conditions that govern **${t}**, demonstrating why initial conditions affect the result.`
+                },
+                {
+                    label: 'Real-World Application',
+                    q: (t, g) => `Design a practical scenario or mini-experiment suitable for **${g}** that demonstrates **${t}** in action. List the steps and expected observations.`,
+                    a: (t) => `*Expected Answer:* Outlines a logical step-by-step setup, identifies independent/dependent factors, and predicts an outcome consistent with **${t}**.`
+                },
+                {
+                    label: 'Critical Synthesis',
+                    q: (t) => `Why is understanding **${t}** essential for solving complex problems in this subject area? Support your argument with two specific reasons.`,
+                    a: (t) => `*Expected Answer:* Provides two well-reasoned points linking **${t}** to broader problem-solving, modeling, or analytical tasks.`
+                }
+            ]);
+
+            // 2. Detect specific subject domain for accurate procedural problem synthesis
             const lowerTopic = topic.toLowerCase();
-            const isMathTopic = /(equation|algebra|linear|quadratic|fraction|percent|geometry|calculus|trigonometry|ratio|math|polynomial|exponent|probability|statistics)/i.test(lowerTopic);
+            const isProbabilityTopic = /(probability|combinatorics|permutation|combination|dice|coin|bayes|conditional|sample space|random event)/i.test(lowerTopic);
+            const isStatisticsTopic = /(statistics|mean|median|mode|standard deviation|variance|quartile|histogram|data analysis)/i.test(lowerTopic);
+            const isGeometryTopic = /(geometry|triangle|circle|area|perimeter|volume|pythagorean|polygon|angle|cylinder|sphere|cone)/i.test(lowerTopic);
+            const isTrigTopic = /(trigonometry|sine|cosine|tangent|sin|cos|tan|radian|unit circle)/i.test(lowerTopic);
+            const isCalculusTopic = /(calculus|derivative|integral|differentiation|integration|limit)/i.test(lowerTopic);
+            const isFractionPercentTopic = /(fraction|percent|percentage|ratio|proportion|decimal|interest)/i.test(lowerTopic);
+            const isAlgebraTopic = /(equation|algebra|linear|quadratic|polynomial|exponent|inequality|factoring)/i.test(lowerTopic);
             const isCodingTopic = /(python|javascript|java|c\+\+|loop|array|function|algorithm|html|css|coding|programming|data structure)/i.test(lowerTopic);
 
             const qaPairs = [];
             const diffMultiplier = diff.includes('Foundational') ? 1 : diff.includes('Intermediate') ? 2 : diff.includes('Challenging') ? 3 : 5;
             const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+            const gcd = (a, b) => (b === 0 ? Math.abs(a) : gcd(b, a % b));
+            const simplifyFrac = (num, den) => {
+                const g = gcd(num, den);
+                return `${num / g}/${den / g}`;
+            };
 
             // Split deep Wikipedia text into dozens of unique candidate sentences and shuffle them!
             const rawSentences = (deepTextPool || wikiSummary)
@@ -671,55 +711,129 @@
 
             const shuffledSentences = shuffleArray(rawSentences);
             const shuffledRelated = shuffleArray(relatedArticles);
-
-            // Diverse Bloom's Taxonomy question templates so repeated runs generate genuinely new angles
-            const bloomTemplates = shuffleArray([
-                {
-                    label: 'Core Definition & Mechanism',
-                    q: (t, g) => `Define **${t}** in precise academic terms appropriate for **${g}**, and identify two essential components or rules that govern it.`,
-                    a: (t, g) => `*Expected Answer:* A clear definition of **${t}** tailored to ${g}, explicitly naming and explaining two foundational principles or components.`
-                },
-                {
-                    label: 'Cause & Effect Analysis',
-                    q: (t) => `Suppose a key variable or initial condition in **${t}** is doubled or reversed. Predict what happens to the final outcome and justify your reasoning.`,
-                    a: (t) => `*Expected Answer:* Students should trace the direct causal chain in **${t}**, clearly distinguishing proportional vs. inverse or threshold effects.`
-                },
-                {
-                    label: 'Real-World Case Study',
-                    q: (t) => `Describe a real-world technology, natural phenomenon, or historical event where **${t}** plays a decisive role. Explain how the theory applies in practice.`,
-                    a: (t) => `*Expected Answer:* 2 pts for a valid real-world example; 3 pts for accurately mapping theoretical concepts of **${t}** onto the practical scenario.`
-                },
-                {
-                    label: 'Error Detection & Misconception',
-                    q: (t) => `A student claims that **"${t} always produces the exact same result regardless of external conditions."** Critique this statement and explain why it is flawed.`,
-                    a: (t) => `*Expected Answer:* Students should refute the overgeneralization by identifying boundary conditions, constraints, or variables that alter **${t}**.`
-                },
-                {
-                    label: 'Comparative Synthesis',
-                    q: (t) => `Compare and contrast two distinct approaches, stages, or subcategories within **${t}**. Use at least two criteria in your comparison.`,
-                    a: (t) => `*Expected Answer:* Structured comparison highlighting both a shared foundation and a critical structural or functional difference within **${t}**.`
-                },
-                {
-                    label: 'Experimental / Investigative Design',
-                    q: (t) => `Design a mini-experiment, survey, or step-by-step verification method to test a hypothesis related to **${t}**. State your independent and dependent variables.`,
-                    a: (t) => `*Expected Answer:* Clear hypothesis, identifiable independent variable (manipulated), dependent variable (measured), and control condition.`
-                },
-                {
-                    label: 'Quantitative / Structural Reasoning',
-                    q: (t) => `Break down **${t}** into a 3-step sequence or hierarchy. Explain what would fail if Step 2 were omitted.`,
-                    a: (t) => `*Expected Answer:* Logical 3-stage breakdown showing dependency between steps and the specific breakdown caused by skipping the intermediate stage.`
-                },
-                {
-                    label: 'Data & Evidence Evaluation',
-                    q: (t) => `What primary evidence or measurable observation allows scientists, historians, or analysts to verify **${t}**? Give a concrete example.`,
-                    a: (t) => `*Expected Answer:* Identifies empirical indicators or primary metrics used to validate **${t}**.`
-                }
-            ]);
-
-            // Generate a larger candidate pool (count + 4) with unique numbers/sentences, then slice & shuffle
+            // Generate a larger candidate pool with topic-accurate generators, then shuffle
             for (let i = 0; i < count; i++) {
-                if (isMathTopic) {
-                    const problemTypes = shuffleArray(['linear', 'quadratic', 'word_rate', 'system_or_ratio', 'inequality']);
+                if (isProbabilityTopic) {
+                    const probModes = shuffleArray(['marbles', 'dice_sum', 'cards', 'independent_events', 'complement', 'conditional_table']);
+                    const mode = probModes[i % probModes.length];
+
+                    if (mode === 'marbles') {
+                        const red = randInt(3, 8 * diffMultiplier);
+                        const blue = randInt(2, 7 * diffMultiplier);
+                        const green = randInt(2, 6 * diffMultiplier);
+                        const total = red + blue + green;
+                        const targetColor = shuffleArray([
+                            { name: 'red', val: red },
+                            { name: 'blue', val: blue },
+                            { name: 'green', val: green }
+                        ])[0];
+                        qaPairs.push({
+                            q: `A bag contains **${red} red**, **${blue} blue**, and **${green} green** marbles. One marble is drawn at random. Find the exact probability $P(\\text{${targetColor.name}})$ as a simplified fraction and a percentage.`,
+                            a: `Total marbles $= ${red} + ${blue} + ${green} = ${total}$.\n$$P(\\text{${targetColor.name}}) = \\frac{${targetColor.val}}{${total}} = \\mathbf{\\frac{${simplifyFrac(targetColor.val, total).split('/')[0]}}{${simplifyFrac(targetColor.val, total).split('/')[1]}}} \\approx \\mathbf{${((targetColor.val / total) * 100).toFixed(1)}\\%}$$`
+                        });
+                    } else if (mode === 'dice_sum') {
+                        const targetSum = randInt(5, 10);
+                        let favorable = 0;
+                        const pairs = [];
+                        for (let d1 = 1; d1 <= 6; d1++) {
+                            for (let d2 = 1; d2 <= 6; d2++) {
+                                if (d1 + d2 === targetSum) {
+                                    favorable++;
+                                    pairs.push(`(${d1},${d2})`);
+                                }
+                            }
+                        }
+                        qaPairs.push({
+                            q: `Two fair six-sided dice are rolled simultaneously. List the sample outcomes that give a sum of **${targetSum}**, and calculate $P(\\text{Sum} = ${targetSum})$ in simplest form.`,
+                            a: `Total sample space $= 6 \\times 6 = 36$. Favorable outcomes (${favorable}): $\\{${pairs.join(', ')}\\}$.\n$$P(\\text{Sum} = ${targetSum}) = \\frac{${favorable}}{36} = \\mathbf{\\frac{${simplifyFrac(favorable, 36).split('/')[0]}}{${simplifyFrac(favorable, 36).split('/')[1]}}}$$`
+                        });
+                    } else if (mode === 'cards') {
+                        const scenarios = shuffleArray([
+                            { desc: 'a face card (Jack, Queen, or King)', fav: 12 },
+                            { desc: 'a red Queen or a black Ace', fav: 4 },
+                            { desc: 'a heart or a King', fav: 16 },
+                            { desc: 'a number card strictly less than 5 (counting Ace as 1)', fav: 16 }
+                        ]);
+                        const sc = scenarios[i % scenarios.length];
+                        qaPairs.push({
+                            q: `One card is randomly selected from a standard **52-card deck**. What is the probability of drawing **${sc.desc}**? Express your answer as a simplified fraction.`,
+                            a: `Favorable cards $= ${sc.fav}$ out of $52$.\n$$P(\\text{Event}) = \\frac{${sc.fav}}{52} = \\mathbf{\\frac{${simplifyFrac(sc.fav, 52).split('/')[0]}}{${simplifyFrac(sc.fav, 52).split('/')[1]}}}$$`
+                        });
+                    } else if (mode === 'independent_events') {
+                        const p1Num = randInt(1, 4);
+                        const p1Den = randInt(5, 8);
+                        const p2Num = randInt(1, 3);
+                        const p2Den = randInt(4, 7);
+                        const num = p1Num * p2Num;
+                        const den = p1Den * p2Den;
+                        qaPairs.push({
+                            q: `Two independent events $A$ and $B$ have probabilities $P(A) = \\frac{${p1Num}}{${p1Den}}$ and $P(B) = \\frac{${p2Num}}{${p2Den}}$. Compute:\n1. $P(A \\cap B)$ (both events occur)\n2. $P(A \\cup B)$ (at least one occurs)`,
+                            a: `1. $P(A \\cap B) = P(A) \\cdot P(B) = \\frac{${p1Num}}{${p1Den}} \\times \\frac{${p2Num}}{${p2Den}} = \\mathbf{\\frac{${simplifyFrac(num, den).split('/')[0]}}{${simplifyFrac(num, den).split('/')[1]}}}$\n2. $P(A \\cup B) = P(A) + P(B) - P(A \\cap B) = \\mathbf{${((p1Num / p1Den) + (p2Num / p2Den) - (num / den)).toFixed(3)}}$`
+                        });
+                    } else if (mode === 'complement') {
+                        const rainPct = randInt(15, 65);
+                        const days = randInt(2, 4);
+                        const pNoRain = (100 - rainPct) / 100;
+                        const pAtLeastOne = (1 - Math.pow(pNoRain, days)) * 100;
+                        qaPairs.push({
+                            q: `The daily probability of rain in a city is **${rainPct}%** (independent from day to day). Using the **complement rule**, find the probability that it rains on **at least one** of the next **${days} days**.`,
+                            a: `$P(\\text{No rain on 1 day}) = 1 - ${rainPct / 100} = ${pNoRain.toFixed(2)}$.\n$$P(\\text{At least 1 rainy day}) = 1 - (${pNoRain.toFixed(2)})^{${days}} \\approx \\mathbf{${pAtLeastOne.toFixed(2)}\\%}$$`
+                        });
+                    } else {
+                        const both = randInt(6, 15);
+                        const onlyA = randInt(10, 22);
+                        const onlyB = randInt(8, 20);
+                        const neither = randInt(4, 12);
+                        const totalStudents = both + onlyA + onlyB + neither;
+                        const totalB = both + onlyB;
+                        qaPairs.push({
+                            q: `In a survey of **${totalStudents} students**, **${onlyA + both}** take Biology, **${totalB}** take Chemistry, and **${both}** take both subjects. If a randomly chosen student takes Chemistry, what is the conditional probability $P(\\text{Biology} \\mid \\text{Chemistry})$?`,
+                            a: `$$P(\\text{Biology} \\mid \\text{Chemistry}) = \\frac{P(\\text{Biology} \\cap \\text{Chemistry})}{P(\\text{Chemistry})} = \\frac{${both}}{${totalB}} = \\mathbf{\\frac{${simplifyFrac(both, totalB).split('/')[0]}}{${simplifyFrac(both, totalB).split('/')[1]}}}$$`
+                        });
+                    }
+                } else if (isStatisticsTopic) {
+                    const dataset = Array.from({ length: 7 }, () => randInt(12, 48 * diffMultiplier)).sort((a, b) => a - b);
+                    const sum = dataset.reduce((acc, v) => acc + v, 0);
+                    const mean = (sum / dataset.length).toFixed(2);
+                    const median = dataset[3];
+                    const range = dataset[dataset.length - 1] - dataset[0];
+                    qaPairs.push({
+                        q: `Consider the recorded dataset: $\\{${shuffleArray(dataset).join(', ')}\\}$. Calculate the **mean**, **median**, and **range** of the dataset.`,
+                        a: `Sorted: $\\{${dataset.join(', ')}\\}$. **Mean** $= \\frac{${sum}}{7} = \\mathbf{${mean}}$; **Median** $= \\mathbf{${median}}$; **Range** $= ${dataset[6]} - ${dataset[0]} = \\mathbf{${range}}$.`
+                    });
+                } else if (isGeometryTopic) {
+                    const r = randInt(3, 12 * diffMultiplier);
+                    const h = randInt(4, 15 * diffMultiplier);
+                    qaPairs.push({
+                        q: `A right circular cylinder has radius $r = ${r}\\text{ cm}$ and height $h = ${h}\\text{ cm}$. Find its exact **volume** and **total surface area** in terms of $\\pi$.`,
+                        a: `**Volume:** $V = \\pi r^2 h = \\pi(${r}^2)(${h}) = \\mathbf{${r * r * h}\\pi\\text{ cm}^3}$.\n**Surface Area:** $SA = 2\\pi r^2 + 2\\pi rh = \\mathbf{${2 * r * r + 2 * r * h}\\pi\\text{ cm}^2}$.`
+                    });
+                } else if (isTrigTopic) {
+                    const opp = randInt(3, 9) * diffMultiplier;
+                    const adj = randInt(4, 12) * diffMultiplier;
+                    const hyp = Math.sqrt(opp * opp + adj * adj).toFixed(2);
+                    qaPairs.push({
+                        q: `In a right-angled triangle, the side opposite angle $\\theta$ has length **${opp}** and the adjacent side has length **${adj}**. Determine $\\tan(\\theta)$, the hypotenuse length, and $\\sin(\\theta)$.`,
+                        a: `$\\tan(\\theta) = \\frac{${opp}}{${adj}} = \\mathbf{${(opp / adj).toFixed(3)}}$; Hypotenuse $= \\sqrt{${opp}^2 + ${adj}^2} \\approx \\mathbf{${hyp}}$; $\\sin(\\theta) \\approx \\mathbf{${(opp / hyp).toFixed(3)}}$.`
+                    });
+                } else if (isCalculusTopic) {
+                    const a = randInt(2, 7 * diffMultiplier);
+                    const n = randInt(3, 6);
+                    const b = randInt(2, 9 * diffMultiplier);
+                    qaPairs.push({
+                        q: `Find the first derivative $f'(x)$ and evaluate $f'(1)$ for the function:\n$$f(x) = ${a}x^{${n}} - ${b}x^2 + 5x - 9$$`,
+                        a: `$f'(x) = ${a * n}x^{${n - 1}} - ${2 * b}x + 5$. At $x = 1$: $f'(1) = ${a * n} - ${2 * b} + 5 = \\mathbf{${a * n - 2 * b + 5}}$.`
+                    });
+                } else if (isFractionPercentTopic) {
+                    const orig = randInt(40, 240) * diffMultiplier;
+                    const pct = randInt(10, 45);
+                    const finalVal = (orig * (1 - pct / 100)).toFixed(2);
+                    qaPairs.push({
+                        q: `An item originally priced at **$${orig}** is discounted by **${pct}%**. Calculate the discount amount and the final sale price.`,
+                        a: `Discount $= ${orig} \\times ${pct / 100} = \\mathbf{\\$${(orig * pct / 100).toFixed(2)}}$. Sale price $= \\mathbf{\\$${finalVal}}$.`
+                    });
+                } else if (isAlgebraTopic) {
+                    const problemTypes = shuffleArray(['linear', 'quadratic', 'word_rate', 'inequality']);
                     const pType = problemTypes[i % problemTypes.length];
 
                     if (pType === 'quadratic' || lowerTopic.includes('quadratic')) {
@@ -733,13 +847,13 @@
                             q: `Solve the quadratic equation for $x$:\n$$x^2 ${signB} ${signC} = 0$$`,
                             a: `Factor into $(x - ${r1})(x ${r2 >= 0 ? `- ${r2}` : `+ ${Math.abs(r2)}`}) = 0$. Solutions: **$x = ${r1}$** and **$x = ${r2}$**.`
                         });
-                    } else if (pType === 'word_rate' || lowerTopic.includes('percent') || lowerTopic.includes('ratio')) {
+                    } else if (pType === 'word_rate') {
                         const rate = randInt(12, 45) * diffMultiplier;
                         const hours = randInt(3, 9);
                         const initial = randInt(15, 80) * diffMultiplier;
                         const total = initial + rate * hours;
                         qaPairs.push({
-                            q: `**Applied Word Problem:** A system modeled by **${topic}** starts at a baseline value of **${initial}** and increases at a constant rate of **${rate}** units per hour. What is the total value after **${hours} hours**, and how many hours would it take to reach **${initial + rate * (hours + 4)}**?`,
+                            q: `**Applied Word Problem:** A linear model for **${topic}** starts at a baseline value of **${initial}** and increases at a constant rate of **${rate}** units per hour. What is the total value after **${hours} hours**, and how many hours would it take to reach **${initial + rate * (hours + 4)}**?`,
                             a: `After ${hours} hours: $${initial} + (${rate} \\times ${hours}) = \\mathbf{${total}}$. To reach ${initial + rate * (hours + 4)}: $\\frac{${initial + rate * (hours + 4)} - ${initial}}{${rate}} = \\mathbf{${hours + 4}\\text{ hours}}$.`
                         });
                     } else if (pType === 'inequality') {
