@@ -827,10 +827,16 @@
                 } else if (isFractionPercentTopic) {
                     const orig = randInt(40, 240) * diffMultiplier;
                     const pct = randInt(10, 45);
+                    const discVal = (orig * pct / 100).toFixed(2);
                     const finalVal = (orig * (1 - pct / 100)).toFixed(2);
+                    const wrong1 = (orig * (1 + pct / 100)).toFixed(2);
+                    const wrong2 = (orig - pct).toFixed(2);
+                    const wrong3 = (orig * (pct / 100)).toFixed(2);
                     qaPairs.push({
-                        q: `An item originally priced at **$${orig}** is discounted by **${pct}%**. Calculate the discount amount and the final sale price.`,
-                        a: `Discount $= ${orig} \\times ${pct / 100} = \\mathbf{\\$${(orig * pct / 100).toFixed(2)}}$. Sale price $= \\mathbf{\\$${finalVal}}$.`
+                        q: `An item originally priced at **USD ${orig}** is discounted by **${pct}%**. Calculate the discount amount and the final sale price.`,
+                        a: `Discount $= ${orig} \\times ${pct / 100} = \\mathbf{\\text{USD } ${discVal}}$. Sale price $= ${orig} - ${discVal} = \\mathbf{\\text{USD } ${finalVal}}$.`,
+                        mcqOptions: [`USD ${finalVal}`, `USD ${wrong1}`, `USD ${wrong2}`, `USD ${wrong3}`],
+                        mcqCorrect: `USD ${finalVal}`
                     });
                 } else if (isAlgebraTopic) {
                     const problemTypes = shuffleArray(['linear', 'quadratic', 'word_rate', 'inequality']);
@@ -843,9 +849,17 @@
                         const prodC = r1 * r2;
                         const signB = sumB === 0 ? '' : (sumB > 0 ? `+ ${sumB}x` : `- ${Math.abs(sumB)}x`);
                         const signC = prodC >= 0 ? `+ ${prodC}` : `- ${Math.abs(prodC)}`;
+                        const correctStr = `$x = ${r1}$ and $x = ${r2}$`;
                         qaPairs.push({
                             q: `Solve the quadratic equation for $x$:\n$$x^2 ${signB} ${signC} = 0$$`,
-                            a: `Factor into $(x - ${r1})(x ${r2 >= 0 ? `- ${r2}` : `+ ${Math.abs(r2)}`}) = 0$. Solutions: **$x = ${r1}$** and **$x = ${r2}$**.`
+                            a: `Factor into $(x - ${r1})(x ${r2 >= 0 ? `- ${r2}` : `+ ${Math.abs(r2)}`}) = 0$. Solutions: **$x = ${r1}$** and **$x = ${r2}$**.`,
+                            mcqOptions: [
+                                correctStr,
+                                `$x = ${-r1}$ and $x = ${-r2}$`,
+                                `$x = ${r1 + 1}$ and $x = ${r2 - 1}$`,
+                                `$x = ${r1}$ and $x = ${-r2}$`
+                            ],
+                            mcqCorrect: correctStr
                         });
                     } else if (pType === 'word_rate') {
                         const rate = randInt(12, 45) * diffMultiplier;
@@ -854,7 +868,14 @@
                         const total = initial + rate * hours;
                         qaPairs.push({
                             q: `**Applied Word Problem:** A linear model for **${topic}** starts at a baseline value of **${initial}** and increases at a constant rate of **${rate}** units per hour. What is the total value after **${hours} hours**, and how many hours would it take to reach **${initial + rate * (hours + 4)}**?`,
-                            a: `After ${hours} hours: $${initial} + (${rate} \\times ${hours}) = \\mathbf{${total}}$. To reach ${initial + rate * (hours + 4)}: $\\frac{${initial + rate * (hours + 4)} - ${initial}}{${rate}} = \\mathbf{${hours + 4}\\text{ hours}}$.`
+                            a: `After ${hours} hours: $${initial} + (${rate} \\times ${hours}) = \\mathbf{${total}}$. To reach ${initial + rate * (hours + 4)}: $\\frac{${initial + rate * (hours + 4)} - ${initial}}{${rate}} = \\mathbf{${hours + 4}\\text{ hours}}$.`,
+                            mcqOptions: [
+                                `${total} units; ${hours + 4} hours`,
+                                `${total - initial} units; ${hours + 2} hours`,
+                                `${total + rate} units; ${hours + 5} hours`,
+                                `${initial * hours} units; ${hours + 3} hours`
+                            ],
+                            mcqCorrect: `${total} units; ${hours + 4} hours`
                         });
                     } else if (pType === 'inequality') {
                         const a = randInt(2, 6 * diffMultiplier);
@@ -863,7 +884,14 @@
                         const rhs = a * xBound + b;
                         qaPairs.push({
                             q: `Solve the inequality for $x$ and state the smallest integer solution:\n$$${a}x + ${b} > ${rhs}$$`,
-                            a: `Subtract ${b}: $${a}x > ${rhs - b} \\implies x > ${xBound}$. Smallest integer solution: **$x = ${xBound + 1}$**.`
+                            a: `Subtract ${b}: $${a}x > ${rhs - b} \\implies x > ${xBound}$. Smallest integer solution: **$x = ${xBound + 1}$**.`,
+                            mcqOptions: [
+                                `$x = ${xBound + 1}$`,
+                                `$x = ${xBound}$`,
+                                `$x = ${xBound - 1}$`,
+                                `$x = ${xBound + 2}$`
+                            ],
+                            mcqCorrect: `$x = ${xBound + 1}$`
                         });
                     } else {
                         const a = randInt(2, 6 * diffMultiplier);
@@ -873,7 +901,14 @@
                         const signB = b >= 0 ? `+ ${b}` : `- ${Math.abs(b)}`;
                         qaPairs.push({
                             q: `Solve for $x$ and verify your answer by substitution:\n$$${a}x ${signB} = ${c}$$`,
-                            a: `Isolate $x$: $${a}x = ${c} - (${b}) = ${c - b} \\implies x = \\frac{${c - b}}{${a}} = \\mathbf{${xVal}}$.`
+                            a: `Isolate $x$: $${a}x = ${c} - (${b}) = ${c - b} \\implies x = \\frac{${c - b}}{${a}} = \\mathbf{${xVal}}$.`,
+                            mcqOptions: [
+                                `$x = ${xVal}$`,
+                                `$x = ${-xVal}$`,
+                                `$x = ${xVal + 2}$`,
+                                `$x = ${Math.round((c + b) / a)}$`
+                            ],
+                            mcqCorrect: `$x = ${xVal}$`
                         });
                     }
                 } else if (isCodingTopic) {
@@ -889,7 +924,14 @@
                         for (let k = start; k < limit; k += step) out.push(k * mult);
                         qaPairs.push({
                             q: `Trace the following **${topic}** snippet and write its exact output:\n\`\`\`python\nvalues = []\nfor n in range(${start}, ${limit}, ${step}):\n    values.append(n * ${mult})\nprint(values)\n\`\`\``,
-                            a: `The loop steps from ${start} to ${limit - 1} by ${step}, multiplying each by ${mult}: **\`${JSON.stringify(out)}\`**.`
+                            a: `The loop steps from ${start} to ${limit - 1} by ${step}, multiplying each by ${mult}: **\`${JSON.stringify(out)}\`**.`,
+                            mcqOptions: [
+                                `\`${JSON.stringify(out)}\``,
+                                `\`${JSON.stringify(out.slice(0, -1))}\``,
+                                `\`${JSON.stringify(out.map(v => v + mult))}\``,
+                                `\`${JSON.stringify(out.map(v => v / mult))}\``
+                            ],
+                            mcqCorrect: `\`${JSON.stringify(out)}\``
                         });
                     } else if (cType === 'write_func') {
                         const threshold = randInt(10, 35 * diffMultiplier);
@@ -901,7 +943,14 @@
                         const modVal = randInt(2, 4);
                         qaPairs.push({
                             q: `Predict how many times \`"hit"\` is printed in this conditional loop:\n\`\`\`python\ncount = 0\nfor i in range(1, ${limit + 3}):\n    if i % ${modVal} == 0:\n        count += 1\nprint(count)\n\`\`\``,
-                            a: `Multiples of ${modVal} between 1 and ${limit + 2}: **\`${Math.floor((limit + 2) / modVal)}\`**.`
+                            a: `Multiples of ${modVal} between 1 and ${limit + 2}: **\`${Math.floor((limit + 2) / modVal)}\`**.`,
+                            mcqOptions: [
+                                `\`${Math.floor((limit + 2) / modVal)}\``,
+                                `\`${Math.floor((limit + 2) / modVal) + 1}\``,
+                                `\`${Math.max(0, Math.floor((limit + 2) / modVal) - 1)}\``,
+                                `\`${limit + 2}\``
+                            ],
+                            mcqCorrect: `\`${Math.floor((limit + 2) / modVal)}\``
                         });
                     } else {
                         const tmpl = bloomTemplates[i % bloomTemplates.length];
@@ -911,46 +960,90 @@
                         });
                     }
                 } else {
-                    // Mix fresh Wikipedia sentence analysis, cross-topic connections, and randomized Bloom templates
-                    const sentence = shuffledSentences[i];
+                    // Topic-strict open-web synthesis: filter sentences that explicitly contain topic keywords
+                    const topicKeywords = topic.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+                    const topicFilteredSentences = shuffledSentences.filter(s =>
+                        topicKeywords.length === 0 || topicKeywords.some(kw => s.toLowerCase().includes(kw))
+                    );
+                    const activePool = topicFilteredSentences.length >= 2 ? topicFilteredSentences : shuffledSentences;
+                    const sentence = activePool[i % Math.max(activePool.length, 1)];
                     const rel = shuffledRelated[i % Math.max(shuffledRelated.length, 1)];
                     const tmpl = bloomTemplates[i % bloomTemplates.length];
 
-                    if (sentence && (format.includes('Multiple Choice') || i % 3 === 0)) {
-                        // Extract a meaningful keyword from the sentence to build a genuine fill-in/MCQ or comprehension question
+                    // Extract domain-relevant vocabulary words directly from the Wikipedia text for realistic MCQ distractors
+                    const topicVocabPool = Array.from(new Set(
+                        deepTextPool
+                            .replace(/[^A-Za-z\s]/g, ' ')
+                            .split(/\s+/)
+                            .filter(w => w.length >= 6 && /^[A-Z]?[a-z]+$/.test(w) && !topicKeywords.includes(w.toLowerCase()))
+                    ));
+
+                    if (sentence && (format.includes('Multiple Choice') || i % 2 === 0)) {
                         const words = sentence.split(/\s+/);
                         const candidateIndices = words
                             .map((w, idx) => ({ w: w.replace(/[^A-Za-z]/g, ''), idx }))
-                            .filter(item => item.idx > 2 && item.w.length >= 6 && /^[A-Z]?[a-z]+$/.test(item.w));
+                            .filter(item => item.idx > 2 && item.w.length >= 5 && /^[A-Z]?[a-z]+$/.test(item.w) && !topicKeywords.includes(item.w.toLowerCase()));
 
                         if (candidateIndices.length > 0 && (format.includes('Multiple Choice') || i % 2 === 0)) {
                             const chosen = candidateIndices[Math.floor(Math.random() * candidateIndices.length)];
                             const answerWord = chosen.w;
                             const blankedSentence = words.map((w, idx) => idx === chosen.idx ? '____________' : w).join(' ');
-                            const distractors = shuffleArray(['Equilibrium', 'Catalysis', 'Hypothesis', 'Synthesis', 'Momentum', 'Diffusion', 'Paradigm', 'Variance']
+                            const fallbackDistractors = ['Equilibrium', 'Catalysis', 'Hypothesis', 'Synthesis', 'Momentum', 'Diffusion', 'Paradigm', 'Variance'];
+                            const combinedDistractors = shuffleArray([...topicVocabPool, ...fallbackDistractors]
                                 .filter(d => d.toLowerCase() !== answerWord.toLowerCase())).slice(0, 3);
-                            const options = shuffleArray([answerWord, ...distractors]);
+                            const options = shuffleArray([answerWord, ...combinedDistractors]);
                             const letters = ['A', 'B', 'C', 'D'];
                             const correctLetter = letters[options.indexOf(answerWord)];
 
                             qaPairs.push({
-                                q: `**Open-Web Concept Check:** Which term accurately completes the following statement about **${topic}**?\n> "${blankedSentence}"\n${options.map((opt, idx) => `- **${letters[idx]})** ${opt}`).join('\n')}`,
-                                a: `**Correct Answer: ${correctLetter}) ${answerWord}** — Verified from open reference text: *"${sentence}"*`
+                                q: `**${topic} — Concept Check:** Which term accurately completes this statement?\n> "${blankedSentence}"\n\n${options.map((opt, idx) => `- **${letters[idx]})** ${opt}`).join('\n')}`,
+                                a: `**Correct Answer: ${correctLetter}) ${answerWord}** — Verified from open reference text on **${topic}**: *"${sentence}"*`,
+                                alreadyFormattedMcq: true
+                            });
+                        } else if (format.includes('Multiple Choice')) {
+                            const correctStmt = `It directly governs how ${topic} operates in ${grade.split('(')[0].trim()} systems.`;
+                            const opts = shuffleArray([
+                                correctStmt,
+                                `It has no measurable impact on ${topic} under any conditions.`,
+                                `It only applies when ${topic} is completely absent.`,
+                                `It contradicts all established principles of ${topic}.`
+                            ]);
+                            const letters = ['A', 'B', 'C', 'D'];
+                            const correctLetter = letters[opts.indexOf(correctStmt)];
+                            qaPairs.push({
+                                q: `**${topic} — Multiple Choice Analysis:** Based on the principles of **${topic}**, which statement is scientifically/academically accurate?\n\n${opts.map((opt, idx) => `- **${letters[idx]})** ${opt}`).join('\n')}`,
+                                a: `**Correct Answer: ${correctLetter})** ${correctStmt}`,
+                                alreadyFormattedMcq: true
                             });
                         } else {
                             qaPairs.push({
-                                q: `**Evidence & Text Analysis:** Read the open-web excerpt below regarding **${topic}** and explain its core implication in 2–3 sentences:\n> "${sentence}"`,
+                                q: `**${topic} — Evidence & Text Analysis:** Read the open-web excerpt below regarding **${topic}** and explain its core implication in 2–3 sentences:\n> "${sentence}"`,
                                 a: `*Key Points Expected:* Accurate restatement of the mechanism/fact in the excerpt and clear connection to **${topic}** for ${grade}.`
                             });
                         }
+                    } else if (format.includes('Multiple Choice')) {
+                        const correctOpt = rel ? `Involves key mechanisms of ${rel.title} within ${topic}` : `Follows the core rules and conditions of ${topic}`;
+                        const opts = shuffleArray([
+                            correctOpt,
+                            `Requires eliminating all variables related to ${topic}`,
+                            `Only occurs outside the domain of ${topic}`,
+                            `Reverses the fundamental laws of ${topic}`
+                        ]);
+                        const letters = ['A', 'B', 'C', 'D'];
+                        const correctLetter = letters[opts.indexOf(correctOpt)];
+                        qaPairs.push({
+                            q: `**${topic} — Multiple Choice:** Which of the following best describes a foundational property of **${topic}**?\n\n${opts.map((opt, idx) => `- **${letters[idx]})** ${opt}`).join('\n')}`,
+                            a: `**Correct Answer: ${correctLetter})** ${correctOpt}`,
+                            alreadyFormattedMcq: true
+                        });
                     } else if (rel && i % 3 === 1) {
                         qaPairs.push({
-                            q: `**Cross-Concept Synthesis:** Explain the relationship between **${topic}** and **${rel.title}**.\n*(Reference clue: ${rel.snippet}...)*`,
+                            q: `**${topic} — Cross-Concept Synthesis:** Explain the relationship between **${topic}** and **${rel.title}**.\n*(Reference clue: ${rel.snippet}...)*`,
                             a: `*Expected Answer:* Explains how **${rel.title}** connects to, influences, or exemplifies **${topic}** with at least one concrete detail.`
                         });
                     } else {
                         qaPairs.push({
-                            q: `**${tmpl.label}:** ${tmpl.q(topic, grade)}`,
+                            q: `**${topic} (${tmpl.label}):** ${tmpl.q(topic, grade)}`,
                             a: tmpl.a(topic, grade)
                         });
                     }
@@ -959,8 +1052,39 @@
 
             // Always shuffle the final question order so every generation has a distinct sequence
             const finalShuffled = shuffleArray(qaPairs);
-            const questions = finalShuffled.map((item, idx) => `**${idx + 1}.** ${item.q}`);
-            const answers = finalShuffled.map((item, idx) => `**${idx + 1}.** ${item.a}`);
+            const isMcqMode = format.includes('Multiple Choice');
+
+            const formattedPairs = finalShuffled.map(item => {
+                if (isMcqMode && !item.alreadyFormattedMcq) {
+                    const letters = ['A', 'B', 'C', 'D'];
+                    if (item.mcqOptions && item.mcqCorrect) {
+                        const shuffledOpts = shuffleArray(item.mcqOptions);
+                        const correctLetter = letters[shuffledOpts.indexOf(item.mcqCorrect)];
+                        return {
+                            q: `${item.q}\n\n${shuffledOpts.map((opt, idx) => `- **${letters[idx]})** ${opt}`).join('\n')}`,
+                            a: `**Correct Answer: ${correctLetter}) ${item.mcqCorrect}** — ${item.a}`
+                        };
+                    } else {
+                        // Auto-wrap open math/concept answers into a 4-option MCQ when MCQ format is selected
+                        const correctSummary = item.a.split('\n')[0].replace(/\*+/g, '').trim();
+                        const opts = shuffleArray([
+                            correctSummary,
+                            `Exactly half of the calculated value for ${topic}`,
+                            `Undefined / Cannot be determined from given ${topic} values`,
+                            `Inverse of the standard ${topic} formula result`
+                        ]);
+                        const correctLetter = letters[opts.indexOf(correctSummary)];
+                        return {
+                            q: `${item.q}\n\n${opts.map((opt, idx) => `- **${letters[idx]})** ${opt}`).join('\n')}`,
+                            a: `**Correct Answer: ${correctLetter})** ${item.a}`
+                        };
+                    }
+                }
+                return item;
+            });
+
+            const questions = formattedPairs.map((item, idx) => `**${idx + 1}.** ${item.q}`);
+            const answers = formattedPairs.map((item, idx) => `**${idx + 1}.** ${item.a}`);
 
             const introBlock = wikiSummary
                 ? `### Student Instructions & Open-Web Context *(Set #${variantNum})*\nComplete all **${count} shuffled questions** below on **${topic}**. Show all reasoning clearly.\n\n> **Open Reference Overview (${topic}):** ${wikiSummary}\n\n---\n\n### Assignment Questions\n\n`
@@ -1119,19 +1243,37 @@ ${params.instructions ? `- Additional Focus / Curriculum Notes: ${params.instruc
                         state.currentAssignment = fallbackAssignment;
                         saveToHistory(fallbackAssignment);
                         renderAssignment(fallbackAssignment);
-                        showToast('No API key active — generated seamlessly via Free Open-Web Engine!', 'info');
+                        showToast('Generated via Free Open-Web Engine (No API Key needed)!', 'success');
                         return;
                     } catch (fallbackErr) {
-                        console.error('Fallback Error:', fallbackErr);
+                        console.error('Fallback engine failed:', fallbackErr);
                     }
                 }
-                console.error('Generation Error:', error);
+                console.error('Assignment Generation Error:', error);
                 els.loadingState.classList.add('hidden');
                 els.emptyState.classList.remove('hidden');
                 showToast(`Generation failed: ${error.message}`, 'error');
             } finally {
                 els.btnGenerate.disabled = false;
             }
+        }
+
+        // Safe Markdown + LaTeX Parser (Prevents marked.js from mangling LaTeX underscores/backslashes)
+        function parseMarkdownWithMath(mdText) {
+            const mathBlocks = [];
+            let protectedText = mdText
+                .replace(/\$\$([\s\S]*?)\$\$/g, (match) => {
+                    mathBlocks.push(match);
+                    return `@@MATH_BLOCK_${mathBlocks.length - 1}@@`;
+                })
+                .replace(/\$([^$\n]+?)\$/g, (match) => {
+                    mathBlocks.push(match);
+                    return `@@MATH_INLINE_${mathBlocks.length - 1}@@`;
+                });
+
+            let html = marked.parse(protectedText);
+            html = html.replace(/@@MATH_(?:BLOCK|INLINE)_(\d+)@@/g, (_, idx) => mathBlocks[Number(idx)]);
+            return html;
         }
 
         // Render Assignment to Worksheet UI
@@ -1145,11 +1287,11 @@ ${params.instructions ? `- Additional Focus / Curriculum Notes: ${params.instruc
             els.metaDifficulty.textContent = `${item.difficulty} · ${item.format.split('(')[0].trim()}`;
             els.worksheetTitle.textContent = item.topic;
 
-            // Parse Markdown safely
-            els.worksheetQuestions.innerHTML = marked.parse(item.questionsMd);
+            // Parse Markdown safely while preserving LaTeX blocks
+            els.worksheetQuestions.innerHTML = parseMarkdownWithMath(item.questionsMd);
 
             if (item.answersMd) {
-                els.worksheetAnswers.innerHTML = marked.parse(item.answersMd);
+                els.worksheetAnswers.innerHTML = parseMarkdownWithMath(item.answersMd);
                 els.btnToggleKey.classList.remove('hidden');
                 updateAnswerKeyVisibility();
             } else {
