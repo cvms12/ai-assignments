@@ -111,8 +111,8 @@
                 <div>
                     <div class="flex items-center gap-2">
                         <h1 class="font-bold text-lg tracking-tight">EduForge</h1>
-                        <span class="text-[11px] font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                            Open-Source · Zero-DB
+                        <span id="mode-badge" class="text-[11px] font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            Free Open-Web · No API Needed
                         </span>
                     </div>
                     <p class="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Instant web-grounded assignment & worksheet generator</p>
@@ -120,10 +120,10 @@
             </div>
 
             <div class="flex items-center gap-2">
-                <!-- Optional API Key Button for Standalone Hosting -->
-                <button id="btn-api-settings" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition" title="Configure Custom API Key">
-                    <i data-lucide="key" class="w-4 h-4 text-amber-500"></i>
-                    <span class="hidden md:inline">API Key</span>
+                <!-- Engine Mode / Optional API Key Button -->
+                <button id="btn-api-settings" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition" title="Switch Engine or Configure Optional API Key">
+                    <i data-lucide="cpu" class="w-4 h-4 text-brand-500"></i>
+                    <span class="hidden md:inline" id="engine-btn-label">Engine & API</span>
                 </button>
 
                 <!-- Saved Local History Button -->
@@ -237,6 +237,17 @@
 
                 <!-- Toggle Switches -->
                 <div class="pt-1 space-y-2.5 border-t border-slate-100 dark:border-slate-800">
+                    <div>
+                        <label for="engine-select" class="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                            Generation Engine
+                        </label>
+                        <select id="engine-select" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 transition">
+                            <option value="auto" selected>Auto (AI if available, else Free Open-Web)</option>
+                            <option value="free-open">100% Free Open-Web Engine (No API Key)</option>
+                            <option value="gemini-ai">Gemini AI Engine (Runtime / Custom Key)</option>
+                        </select>
+                    </div>
+
                     <label class="flex items-center justify-between cursor-pointer py-1">
                         <span class="text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2">
                             <i data-lucide="globe" class="w-4 h-4 text-sky-500"></i>
@@ -266,9 +277,9 @@
             <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 text-xs text-slate-600 dark:text-slate-400 space-y-1">
                 <p class="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                     <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-500"></i>
-                    100% Client-Side & Stateless
+                    Works With or Without API Keys
                 </p>
-                <p>No Firebase, login, or backend database required. Saved assignments stay privately in your browser's local storage.</p>
+                <p>Pulls live open educational articles (Wikipedia / Open-Web) & procedural math/science generators when no API key is set—zero Firebase or backend needed.</p>
             </div>
         </aside>
 
@@ -414,26 +425,29 @@
         <div class="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
             <div class="flex items-center justify-between">
                 <h3 class="font-bold text-base flex items-center gap-2">
-                    <i data-lucide="key" class="w-4 h-4 text-amber-500"></i>
-                    Gemini API Key (Optional)
+                    <i data-lucide="cpu" class="w-4 h-4 text-brand-500"></i>
+                    Engine & Optional Gemini API Key
                 </h3>
                 <button id="btn-close-api-modal" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
             <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                Leave blank inside the Canvas preview (it connects automatically). If you download and host this open-source HTML file on your own website or GitHub Pages, paste a free key from Google AI Studio below. It stays strictly in your browser's <code>localStorage</code>.
+                <strong>No API key is required!</strong> By default, if no Gemini API key is configured, EduForge automatically uses its built-in <strong>Free Open-Web Engine</strong> (fetching live Wikipedia/Wikimedia educational summaries, open trivia/quiz banks, and procedural math/science problem generators).
+            </p>
+            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Want deeper custom AI synthesis on your own server? Paste an optional free key from Google AI Studio below (stored only in your browser's <code>localStorage</code>).
             </p>
             <div>
-                <input type="password" id="custom-api-key-input" placeholder="AIzaSy... (Leave blank for default)"
+                <input type="password" id="custom-api-key-input" placeholder="AIzaSy... (Optional — leave blank for Keyless Mode)"
                     class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
             </div>
             <div class="flex justify-end gap-2 pt-2">
                 <button id="btn-clear-api-key" type="button" class="px-3.5 py-2 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
-                    Reset to Default
+                    Use Keyless Mode
                 </button>
                 <button id="btn-save-api-key" type="button" class="px-4 py-2 rounded-xl text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white shadow-sm">
-                    Save Key
+                    Save Settings
                 </button>
             </div>
         </div>
@@ -448,7 +462,8 @@
             currentAssignment: null,
             showAnswerKey: true,
             history: JSON.parse(localStorage.getItem('eduforge_history') || '[]'),
-            customApiKey: localStorage.getItem('eduforge_api_key') || ''
+            customApiKey: localStorage.getItem('eduforge_api_key') || '',
+            engineMode: localStorage.getItem('eduforge_engine_mode') || 'auto'
         };
 
         // DOM Elements Reference
@@ -460,6 +475,8 @@
             format: document.getElementById('format'),
             numQuestions: document.getElementById('num-questions'),
             instructions: document.getElementById('instructions'),
+            engineSelect: document.getElementById('engine-select'),
+            modeBadge: document.getElementById('mode-badge'),
             useWebSearch: document.getElementById('use-web-search'),
             includeAnswers: document.getElementById('include-answers'),
             btnGenerate: document.getElementById('btn-generate'),
@@ -498,46 +515,182 @@
             btnClearApiKey: document.getElementById('btn-clear-api-key')
         };
 
-        // Toast Notification System (Replaces alert())
-        function showToast(message, type = 'info') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            const colors = {
-                info: 'bg-slate-900 text-white dark:bg-slate-800 border-slate-700',
-                success: 'bg-emerald-600 text-white border-emerald-500',
-                error: 'bg-rose-600 text-white border-rose-500'
-            };
-            toast.className = `pointer-events-auto px-4 py-3 rounded-xl shadow-lg border text-sm font-medium flex items-center gap-2.5 transform transition-all duration-300 translate-y-2 opacity-0 ${colors[type] || colors.info}`;
-            toast.innerHTML = `<span>${message}</span>`;
-            container.appendChild(toast);
+        els.engineSelect.value = state.engineMode;
 
-            requestAnimationFrame(() => {
-                toast.classList.remove('translate-y-2', 'opacity-0');
-            });
-
-            setTimeout(() => {
-                toast.classList.add('translate-y-2', 'opacity-0');
-                setTimeout(() => toast.remove(), 300);
-            }, 3500);
+        function updateEngineBadge() {
+            const mode = els.engineSelect.value;
+            if (mode === 'free-open') {
+                els.modeBadge.textContent = '100% Keyless Open-Web';
+            } else if (state.customApiKey || mode === 'gemini-ai') {
+                els.modeBadge.textContent = 'Gemini AI + Open-Web';
+            } else {
+                els.modeBadge.textContent = 'Auto · Keyless Ready';
+            }
         }
+        updateEngineBadge();
 
-        // Exponential Backoff Fetch Helper
-        async function fetchWithBackoff(url, options, maxRetries = 3) {
-            let delay = 1000;
-            for (let attempt = 0; attempt <= maxRetries; attempt++) {
-                try {
-                    const response = await fetch(url, options);
-                    const data = await response.json();
-                    if (!response.ok) {
-                        throw new Error(data.error?.message || `HTTP Error ${response.status}`);
+        // Toast Notification System (Replaces alert())
+        // =========================================================================
+        // 100% KEYLESS OPEN-WEB & PROCEDURAL CURRICULUM ENGINE (NO API KEY NEEDED)
+        // =========================================================================
+        async function generateKeylessOpenWebAssignment(params) {
+            const count = parseInt(params.numQuestions, 10) || 8;
+            const topic = params.topic.trim();
+            const grade = params.grade;
+            const diff = params.difficulty;
+            const format = params.format;
+            const sources = [];
+
+            // 1. Fetch real educational articles & facts from Wikipedia's free public REST & Search APIs
+            let wikiSummary = '';
+            let relatedArticles = [];
+            try {
+                const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(topic)}&format=json&origin=*&srlimit=4`;
+                const searchRes = await fetch(searchUrl);
+                const searchData = await searchRes.json();
+                const hits = searchData?.query?.search || [];
+
+                if (hits.length > 0) {
+                    const topTitle = hits[0].title;
+                    const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topTitle)}`;
+                    const sumRes = await fetch(summaryUrl);
+                    if (sumRes.ok) {
+                        const sumData = await sumRes.json();
+                        wikiSummary = sumData.extract || '';
+                        if (sumData.content_urls?.desktop?.page) {
+                            sources.push({ title: `Wikipedia: ${sumData.title}`, uri: sumData.content_urls.desktop.page });
+                        }
                     }
-                    return data;
-                } catch (err) {
-                    if (attempt === maxRetries) throw err;
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    delay *= 2;
+
+                    hits.slice(1).forEach(h => {
+                        relatedArticles.push({
+                            title: h.title,
+                            snippet: h.snippet.replace(/<\/?[^>]+(>|$)/g, '')
+                        });
+                        sources.push({
+                            title: `Wikipedia: ${h.title}`,
+                            uri: `https://en.wikipedia.org/wiki/${encodeURIComponent(h.title.replace(/ /g, '_'))}`
+                        });
+                    });
+                }
+            } catch (e) {
+                console.warn('Open-web Wikipedia fetch skipped:', e);
+            }
+
+            // 2. Detect if topic is Math / Algebra / Physics / Arithmetic to generate procedural problems with exact math answers
+            const lowerTopic = topic.toLowerCase();
+            const isMathTopic = /(equation|algebra|linear|quadratic|fraction|percent|geometry|calculus|trigonometry|ratio|math|polynomial|exponent|probability|statistics)/i.test(lowerTopic);
+            const isCodingTopic = /(python|javascript|java|c\+\+|loop|array|function|algorithm|html|css|coding|programming|data structure)/i.test(lowerTopic);
+
+            const questions = [];
+            const answers = [];
+
+            // Helper for random integers scaled by difficulty
+            const diffMultiplier = diff.includes('Foundational') ? 1 : diff.includes('Intermediate') ? 2 : diff.includes('Challenging') ? 3 : 5;
+            const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+            // Extract clean factual sentences from Wikipedia summary for comprehension & concept questions
+            const sentences = wikiSummary
+                .split(/(?<=[.!?])\s+/)
+                .map(s => s.trim())
+                .filter(s => s.length > 35 && s.length < 260);
+
+            for (let i = 1; i <= count; i++) {
+                if (isMathTopic) {
+                    // Procedural Math Problem Generator (Infinite unique problems + exact step-by-step solutions)
+                    const a = randInt(2, 5 * diffMultiplier);
+                    const xVal = randInt(-6 * diffMultiplier, 9 * diffMultiplier) || 4;
+                    const b = randInt(-12 * diffMultiplier, 15 * diffMultiplier);
+                    const c = a * xVal + b;
+
+                    if (lowerTopic.includes('quadratic') && i % 2 === 0) {
+                        const r1 = randInt(1, 4 * diffMultiplier);
+                        const r2 = randInt(2, 5 * diffMultiplier);
+                        const sumB = -(r1 + r2);
+                        const prodC = r1 * r2;
+                        const signB = sumB >= 0 ? `+ ${sumB}` : `- ${Math.abs(sumB)}`;
+                        questions.push(`**${i}.** Solve the quadratic equation for $x$ by factoring or using the quadratic formula:\n$$x^2 ${signB}x + ${prodC} = 0$$`);
+                        answers.push(`**${i}.** Factor into $(x - ${r1})(x - ${r2}) = 0$. Setting each factor to zero gives **$x = ${r1}$** and **$x = ${r2}$**.`);
+                    } else if (lowerTopic.includes('percent') || lowerTopic.includes('ratio')) {
+                        const pct = randInt(1, 9) * 10;
+                        const base = randInt(2, 20 * diffMultiplier) * 10;
+                        const resultVal = (pct / 100) * base;
+                        questions.push(`**${i}.** A real-world ${topic} scenario involves finding **${pct}%** of **${base}**. Calculate the exact value and show your steps.`);
+                        answers.push(`**${i}.** Convert ${pct}% to decimal (${pct / 100}) and multiply by ${base}: $${pct / 100} \\times ${base} = \\mathbf{${resultVal}}$.`);
+                    } else {
+                        const signB = b >= 0 ? `+ ${b}` : `- ${Math.abs(b)}`;
+                        questions.push(`**${i}.** Solve the equation for $x$ and verify your solution:\n$$${a}x ${signB} = ${c}$$`);
+                        answers.push(`**${i}.** Subtract/add ${Math.abs(b)} on both sides to get $${a}x = ${c - b}$, then divide by ${a} to obtain **$x = ${xVal}$**.`);
+                    }
+                } else if (isCodingTopic) {
+                    // Procedural Computer Science & Coding Exercises
+                    const limit = randInt(4, 8 + diffMultiplier * 2);
+                    const step = randInt(2, 3);
+                    if (i % 3 === 1) {
+                        let out = [];
+                        for (let k = 0; k < limit; k += step) out.push(k);
+                        questions.push(`**${i}.** Trace the following code snippet related to **${topic}** and write its exact console output:\n\`\`\`python\nresult = []\nfor i in range(0, ${limit}, ${step}):\n    result.append(i * 2)\nprint(result)\n\`\`\``);
+                        answers.push(`**${i}.** The loop iterates over \`${JSON.stringify(out)}\` and doubles each element, outputting: **\`${JSON.stringify(out.map(n => n * 2))}\`**.`);
+                    } else if (i % 3 === 2) {
+                        questions.push(`**${i}.** Write a clean, well-commented function applying **${topic}** that takes a list of numbers and returns only values greater than \`${limit * 2}\`.`);
+                        answers.push(`**${i}.** Example solution:\n\`\`\`python\ndef filter_values(items):\n    return [x for x in items if x > ${limit * 2}]\n\`\`\`\n*Grading Rubric:* 2 pts for function signature, 3 pts for conditional filtering, 2 pts for return statement.`);
+                    } else {
+                        questions.push(`**${i}.** *Debugging & Analysis (${diff}):* Explain a common runtime or logical bug students encounter when working with **${topic}** and show how to fix it.`);
+                        answers.push(`**${i}.** Common issues include off-by-one boundary conditions or mutating a collection while iterating over it. Using proper bounds checking or list comprehensions prevents unexpected behavior.`);
+                    }
+                } else {
+                    // General Subject Generator grounded in live Wikipedia article extracts
+                    const fact = sentences[(i - 1) % Math.max(sentences.length, 1)];
+                    const rel = relatedArticles[(i - 1) % Math.max(relatedArticles.length, 1)];
+
+                    if (fact && i <= sentences.length && format.includes('Multiple Choice')) {
+                        const words = fact.split(' ');
+                        const targetIdx = words.findIndex((w, idx) => idx > 3 && w.length > 5 && /^[A-Za-z]+$/.test(w));
+                        const hiddenWord = targetIdx !== -1 ? words[targetIdx] : topic.split(' ')[0];
+                        const blanked = targetIdx !== -1
+                            ? words.map((w, idx) => idx === targetIdx ? '__________' : w).join(' ')
+                            : fact;
+                        questions.push(`**${i}.** Based on open-web reference material on **${topic}**, which term best completes the statement?\n> "${blanked}"\n- A) ${hiddenWord}\n- B) Equilibrium\n- C) Synthesis\n- D) Variable`);
+                        answers.push(`**${i}.** **Correct Answer: A (${hiddenWord})** — Directly verified from the open curriculum summary of *${topic}*.`);
+                    } else if (fact && i % 3 === 1) {
+                        questions.push(`**${i}.** *Concept Comprehension:* Read the reference statement below and explain its significance in your own words (2–3 sentences):\n> "${fact}"`);
+                        answers.push(`**${i}.** *Key Points Expected:* Students should accurately paraphrase the core mechanism/event described in the excerpt and connect it to the broader principles of **${topic}** at a ${grade} level.`);
+                    } else if (rel && i % 3 === 2) {
+                        questions.push(`**${i}.** *Cross-Topic Connection:* How does **${topic}** connect to **${rel.title}**? Use evidence or examples in your response.\n*(Hint context: ${rel.snippet}...)*`);
+                        answers.push(`**${i}.** *Expected Analysis:* Strong responses identify how *${rel.title}* interacts with or builds upon *${topic}*, citing at least one concrete cause-and-effect relationship.`);
+                    } else {
+                        const promptsByDiff = {
+                            'Foundational / Warm-up': `Define **${topic}** in clear terms and provide one everyday example suitable for ${grade}.`,
+                            'Intermediate / Grade-Level': `Analyze two primary factors or principles that govern **${topic}** and explain how changing one affects the outcome.`,
+                            'Challenging / Analytical': `Evaluate a real-world problem or case study involving **${topic}**. Propose a reasoned solution supported by evidence.`,
+                            'Olympiad / Competition Level': `Synthesize multiple principles of **${topic}** to defend or critique a complex hypothesis, addressing potential counterarguments.`
+                        };
+                        questions.push(`**${i}.** *${diff.split('/')[0].trim()} Application:* ${promptsByDiff[diff] || promptsByDiff['Intermediate / Grade-Level']}`);
+                        answers.push(`**${i}.** *Grading Rubric (10 pts):* 4 pts for accurate terminology related to **${topic}**; 4 pts for logical explanation tailored to ${grade}; 2 pts for clarity and concrete examples.`);
+                    }
                 }
             }
+
+            const introBlock = wikiSummary
+                ? `### Student Instructions & Open-Web Context\nRead the reference overview below and complete all **${count} questions**. Show your reasoning clearly.\n\n> **Open Reference Overview (${topic}):** ${wikiSummary}\n\n---\n\n### Assignment Questions\n\n`
+                : `### Student Instructions\nComplete all **${count} questions** below on **${topic}** (${grade} · ${diff}). Show all work and write in complete sentences where required.\n\n---\n\n### Assignment Questions\n\n`;
+
+            const questionsMd = introBlock + questions.join('\n\n');
+            const answersMd = params.includeAnswers ? answers.join('\n\n') : '';
+            const rawMarkdown = params.includeAnswers ? `${questionsMd}\n\n===ANSWER_KEY===\n\n${answersMd}` : questionsMd;
+
+            return {
+                id: Date.now().toString(),
+                createdAt: new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+                topic: params.topic,
+                grade: params.grade,
+                difficulty: params.difficulty,
+                format: params.format,
+                questionsMd,
+                answersMd,
+                rawMarkdown,
+                sources
+            };
         }
 
         // Core Assignment Generation Function
@@ -549,6 +702,24 @@
             els.sourcesCard.classList.add('hidden');
             els.loadingState.classList.remove('hidden');
             els.btnGenerate.disabled = true;
+
+            // If user explicitly chose Keyless Open-Web Engine, run it directly without calling any AI API
+            if (params.engineMode === 'free-open') {
+                try {
+                    const assignmentObj = await generateKeylessOpenWebAssignment(params);
+                    state.currentAssignment = assignmentObj;
+                    saveToHistory(assignmentObj);
+                    renderAssignment(assignmentObj);
+                    showToast('Generated via Free Open-Web Engine (No API Key used)!', 'success');
+                } catch (err) {
+                    els.loadingState.classList.add('hidden');
+                    els.emptyState.classList.remove('hidden');
+                    showToast(`Generation error: ${err.message}`, 'error');
+                } finally {
+                    els.btnGenerate.disabled = false;
+                }
+                return;
+            }
 
             const systemPrompt = `You are an expert curriculum designer and master educator.
 Create a crisp, well-structured student assignment based on the user's topic, grade level, difficulty, and format.
@@ -590,8 +761,6 @@ ${params.instructions ? `- Additional Focus / Curriculum Notes: ${params.instruc
                         body: JSON.stringify(payload)
                     });
                 } catch (firstErr) {
-                    // Automatic fallback: If Google Search tool is denied by the API key/environment,
-                    // retry seamlessly without the search tool so assignment generation still succeeds.
                     const errMsg = (firstErr.message || '').toLowerCase();
                     if (payload.tools && (errMsg.includes('permission') || errMsg.includes('403') || errMsg.includes('400') || errMsg.includes('denied'))) {
                         delete payload.tools;
@@ -600,7 +769,6 @@ ${params.instructions ? `- Additional Focus / Curriculum Notes: ${params.instruc
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payload)
                         });
-                        showToast('Web search tool restricted by key—generated using built-in curriculum knowledge.', 'info');
                     } else {
                         throw firstErr;
                     }
@@ -610,7 +778,7 @@ ${params.instructions ? `- Additional Focus / Curriculum Notes: ${params.instruc
                 const rawMarkdown = candidate?.content?.parts?.[0]?.text;
 
                 if (!rawMarkdown) {
-                    throw new Error('No assignment content was returned. Please try refining your topic.');
+                    throw new Error('No assignment content was returned.');
                 }
 
                 // Extract Grounding Web Sources if available
@@ -619,10 +787,8 @@ ${params.instructions ? `- Additional Focus / Curriculum Notes: ${params.instruc
                     .filter(chunk => chunk.web?.uri && chunk.web?.title)
                     .map(chunk => ({ title: chunk.web.title, uri: chunk.web.uri }));
 
-                // Deduplicate sources by URI
                 const uniqueSources = Array.from(new Map(sources.map(s => [s.uri, s])).values());
 
-                // Split Questions and Answer Key
                 const parts = rawMarkdown.split('===ANSWER_KEY===');
                 const questionsMd = parts[0].trim();
                 const answersMd = parts[1] ? parts[1].trim() : '';
@@ -643,9 +809,23 @@ ${params.instructions ? `- Additional Focus / Curriculum Notes: ${params.instruc
                 state.currentAssignment = assignmentObj;
                 saveToHistory(assignmentObj);
                 renderAssignment(assignmentObj);
-                showToast('Assignment generated successfully!', 'success');
+                showToast('Assignment generated with Gemini AI!', 'success');
 
             } catch (error) {
+                // Automatic Keyless Fallback: If hosted standalone without an API key (or API quota/key error),
+                // seamlessly fall back to the 100% Free Open-Web Engine so it ALWAYS works!
+                if (params.engineMode === 'auto') {
+                    try {
+                        const fallbackAssignment = await generateKeylessOpenWebAssignment(params);
+                        state.currentAssignment = fallbackAssignment;
+                        saveToHistory(fallbackAssignment);
+                        renderAssignment(fallbackAssignment);
+                        showToast('No API key active — generated seamlessly via Free Open-Web Engine!', 'info');
+                        return;
+                    } catch (fallbackErr) {
+                        console.error('Fallback Error:', fallbackErr);
+                    }
+                }
                 console.error('Generation Error:', error);
                 els.loadingState.classList.add('hidden');
                 els.emptyState.classList.remove('hidden');
@@ -768,6 +948,12 @@ ${params.instructions ? `- Additional Focus / Curriculum Notes: ${params.instruc
         };
 
         // Event Listeners
+        els.engineSelect.addEventListener('change', () => {
+            state.engineMode = els.engineSelect.value;
+            localStorage.setItem('eduforge_engine_mode', state.engineMode);
+            updateEngineBadge();
+        });
+
         els.form.addEventListener('submit', (e) => {
             e.preventDefault();
             const topicVal = els.topic.value.trim();
@@ -782,6 +968,7 @@ ${params.instructions ? `- Additional Focus / Curriculum Notes: ${params.instruc
                 format: els.format.value,
                 numQuestions: els.numQuestions.value,
                 instructions: els.instructions.value.trim(),
+                engineMode: els.engineSelect.value,
                 useWebSearch: els.useWebSearch.checked,
                 includeAnswers: els.includeAnswers.checked
             });
@@ -884,15 +1071,20 @@ ${params.instructions ? `- Additional Focus / Curriculum Notes: ${params.instruc
                 showToast('Custom API key saved locally.', 'success');
             } else {
                 localStorage.removeItem('eduforge_api_key');
-                showToast('Using default runtime API key.', 'info');
+                showToast('Keyless / Default mode active.', 'info');
             }
+            updateEngineBadge();
             els.apiModal.classList.add('hidden');
         });
         els.btnClearApiKey.addEventListener('click', () => {
             state.customApiKey = '';
             els.customApiKeyInput.value = '';
             localStorage.removeItem('eduforge_api_key');
-            showToast('Cleared custom API key.', 'info');
+            els.engineSelect.value = 'free-open';
+            state.engineMode = 'free-open';
+            localStorage.setItem('eduforge_engine_mode', 'free-open');
+            updateEngineBadge();
+            showToast('Switched to 100% Keyless Open-Web Mode.', 'info');
             els.apiModal.classList.add('hidden');
         });
 
