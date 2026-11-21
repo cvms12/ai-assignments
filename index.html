@@ -110,16 +110,22 @@
                 </div>
                 <div>
                     <div class="flex items-center gap-2">
-                        <h1 class="font-bold text-lg sm:text-xl tracking-tight">EduForge Open Studio</h1>
-                        <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                            Open-Source • No DB Required
+                        <h1 class="font-bold text-lg tracking-tight">EduForge</h1>
+                        <span class="text-[11px] font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            Open-Source · Zero-DB
                         </span>
                     </div>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">Live Web-Grounded Curriculum & Assignment Generator</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Instant web-grounded assignment & worksheet generator</p>
                 </div>
             </div>
 
             <div class="flex items-center gap-2">
+                <!-- Optional API Key Button for Standalone Hosting -->
+                <button id="btn-api-settings" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition" title="Configure Custom API Key">
+                    <i data-lucide="key" class="w-4 h-4 text-amber-500"></i>
+                    <span class="hidden md:inline">API Key</span>
+                </button>
+
                 <!-- Saved Local History Button -->
                 <button id="btn-toggle-history" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
                     <i data-lucide="history" class="w-4 h-4"></i>
@@ -162,7 +168,7 @@
                         class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition">
                 </div>
 
-                <!-- Grade Level & Subject Row -->
+                <!-- Grade Level & Difficulty Row -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3.5">
                     <div>
                         <label for="grade" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
@@ -402,6 +408,37 @@
         </div>
     </div>
 
+    <!-- Optional Custom API Key Modal (For Self-Hosting Outside Preview) -->
+    <div id="api-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 no-print">
+        <div id="api-modal-backdrop" class="absolute inset-0 bg-slate-900/50 backdrop-blur-xs"></div>
+        <div class="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="font-bold text-base flex items-center gap-2">
+                    <i data-lucide="key" class="w-4 h-4 text-amber-500"></i>
+                    Gemini API Key (Optional)
+                </h3>
+                <button id="btn-close-api-modal" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Leave blank inside the Canvas preview (it connects automatically). If you download and host this open-source HTML file on your own website or GitHub Pages, paste a free key from Google AI Studio below. It stays strictly in your browser's <code>localStorage</code>.
+            </p>
+            <div>
+                <input type="password" id="custom-api-key-input" placeholder="AIzaSy... (Leave blank for default)"
+                    class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button id="btn-clear-api-key" type="button" class="px-3.5 py-2 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    Reset to Default
+                </button>
+                <button id="btn-save-api-key" type="button" class="px-4 py-2 rounded-xl text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white shadow-sm">
+                    Save Key
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Initialize Lucide Icons
         lucide.createIcons();
@@ -410,10 +447,11 @@
         const state = {
             currentAssignment: null,
             showAnswerKey: true,
-            history: JSON.parse(localStorage.getItem('eduforge_history') || '[]')
+            history: JSON.parse(localStorage.getItem('eduforge_history') || '[]'),
+            customApiKey: localStorage.getItem('eduforge_api_key') || ''
         };
 
-        // DOM Elements
+        // DOM Elements Reference
         const els = {
             form: document.getElementById('assignment-form'),
             topic: document.getElementById('topic'),
@@ -430,9 +468,9 @@
             loadingState: document.getElementById('loading-state'),
             printableWorksheet: document.getElementById('printable-worksheet'),
             outputToolbar: document.getElementById('output-toolbar'),
-            worksheetTitle: document.getElementById('worksheet-title'),
             metaGrade: document.getElementById('meta-grade'),
             metaDifficulty: document.getElementById('meta-difficulty'),
+            worksheetTitle: document.getElementById('worksheet-title'),
             worksheetQuestions: document.getElementById('worksheet-questions'),
             answerKeySection: document.getElementById('answer-key-section'),
             worksheetAnswers: document.getElementById('worksheet-answers'),
@@ -450,10 +488,17 @@
             btnClearHistory: document.getElementById('btn-clear-history'),
             historyList: document.getElementById('history-list'),
             historyBadge: document.getElementById('history-badge'),
-            btnTheme: document.getElementById('btn-theme')
+            btnTheme: document.getElementById('btn-theme'),
+            btnApiSettings: document.getElementById('btn-api-settings'),
+            apiModal: document.getElementById('api-modal'),
+            apiModalBackdrop: document.getElementById('api-modal-backdrop'),
+            btnCloseApiModal: document.getElementById('btn-close-api-modal'),
+            customApiKeyInput: document.getElementById('custom-api-key-input'),
+            btnSaveApiKey: document.getElementById('btn-save-api-key'),
+            btnClearApiKey: document.getElementById('btn-clear-api-key')
         };
 
-        // Toast Notification Helper (Zero alert() usage)
+        // Toast Notification System (Replaces alert())
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -462,7 +507,7 @@
                 success: 'bg-emerald-600 text-white border-emerald-500',
                 error: 'bg-rose-600 text-white border-rose-500'
             };
-            toast.className = `pointer-events-auto px-4 py-3 rounded-xl shadow-lg border text-sm font-medium flex items-center gap-2 transform transition-all duration-300 translate-y-2 opacity-0 ${colors[type]}`;
+            toast.className = `pointer-events-auto px-4 py-3 rounded-xl shadow-lg border text-sm font-medium flex items-center gap-2.5 transform transition-all duration-300 translate-y-2 opacity-0 ${colors[type] || colors.info}`;
             toast.innerHTML = `<span>${message}</span>`;
             container.appendChild(toast);
 
@@ -473,113 +518,58 @@
             setTimeout(() => {
                 toast.classList.add('translate-y-2', 'opacity-0');
                 setTimeout(() => toast.remove(), 300);
-            }, 3200);
+            }, 3500);
         }
 
-        // Theme Management
-        function initTheme() {
-            const savedTheme = localStorage.getItem('eduforge_theme');
-            if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                document.documentElement.classList.add('dark');
-            }
-        }
-        els.btnTheme.addEventListener('click', () => {
-            document.documentElement.classList.toggle('dark');
-            const isDark = document.documentElement.classList.contains('dark');
-            localStorage.setItem('eduforge_theme', isDark ? 'dark' : 'light');
-        });
-        initTheme();
-
-        // Fill Sample Button & Quick Topic Chips
-        els.btnSample.addEventListener('click', () => {
-            els.topic.value = 'Quadratic Equations & Factoring';
-            els.grade.value = 'Grade 9-10 (High School)';
-            els.difficulty.value = 'Intermediate / Grade-Level';
-            els.format.value = 'Mixed Worksheet (MCQs, Short Answer & Word Problems)';
-            els.numQuestions.value = '8';
-            els.instructions.value = 'Include 2 real-world projectile motion word problems and show step-by-step solutions in the key.';
-            showToast('Sample parameters loaded!', 'info');
-        });
-
-        document.querySelectorAll('.quick-topic').forEach(btn => {
-            btn.addEventListener('click', () => {
-                els.topic.value = btn.dataset.topic;
-                els.grade.value = btn.dataset.grade;
-                els.difficulty.value = btn.dataset.diff;
-                els.form.dispatchEvent(new Event('submit'));
-            });
-        });
-
-        // Exponential Backoff Fetch for Gemini API
-        async function fetchWithBackoff(url, options, maxRetries = 4) {
+        // Exponential Backoff Fetch Helper
+        async function fetchWithBackoff(url, options, maxRetries = 3) {
             let delay = 1000;
             for (let attempt = 0; attempt <= maxRetries; attempt++) {
                 try {
                     const response = await fetch(url, options);
-                    if (response.ok) {
-                        return await response.json();
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error?.message || `HTTP Error ${response.status}`);
                     }
-                    if (response.status === 429 || response.status >= 500) {
-                        if (attempt === maxRetries) throw new Error(`API returned status ${response.status}`);
-                    } else {
-                        const errData = await response.json().catch(() => ({}));
-                        throw new Error(errData.error?.message || `HTTP Error ${response.status}`);
-                    }
+                    return data;
                 } catch (err) {
                     if (attempt === maxRetries) throw err;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2;
                 }
-                await new Promise(resolve => setTimeout(resolve, delay));
-                delay *= 2;
             }
         }
 
-        // Generate Assignment Handler
-        els.form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const topicVal = els.topic.value.trim();
-            if (!topicVal) {
-                showToast('Please enter a topic first.', 'error');
-                return;
-            }
-
-            const params = {
-                topic: topicVal,
-                grade: els.grade.value,
-                difficulty: els.difficulty.value,
-                format: els.format.value,
-                numQuestions: els.numQuestions.value,
-                instructions: els.instructions.value.trim(),
-                useWebSearch: els.useWebSearch.checked,
-                includeAnswers: els.includeAnswers.checked
-            };
-
-            // Update UI to Loading State
-            els.btnGenerate.disabled = true;
+        // Core Assignment Generation Function
+        async function generateAssignment(params) {
+            // UI Loading State
             els.emptyState.classList.add('hidden');
             els.printableWorksheet.classList.add('hidden');
             els.outputToolbar.classList.add('hidden');
             els.sourcesCard.classList.add('hidden');
             els.loadingState.classList.remove('hidden');
+            els.btnGenerate.disabled = true;
 
-            const systemPrompt = `You are an expert curriculum designer and master educator. Create clear, accurate, engaging, and well-structured student assignments tailored to the exact grade level and difficulty requested.
-Use clean Markdown formatting. Use LaTeX math notation wrapped in $...$ for inline math and $$...$$ for display math whenever mathematical or scientific formulas are needed.
-CRITICAL FORMATTING RULE:
-Separate the student worksheet from the teacher answer key using the exact delimiter:
-===ANSWER_KEY===
-Do NOT put answers inside the student worksheet section above the delimiter. Put all answers and step-by-step explanations strictly below ===ANSWER_KEY===.`;
+            const systemPrompt = `You are an expert curriculum designer and master educator.
+Create a crisp, well-structured student assignment based on the user's topic, grade level, difficulty, and format.
+Rules:
+1. Tailor vocabulary, cognitive rigor, and scaffolding strictly to the requested Grade Level and Difficulty.
+2. Format cleanly in Markdown. Use LaTeX ($...$ for inline math, $$...$$ for block math) whenever math or science notation is needed.
+3. Do NOT include student name/date lines at the top (the UI renders those automatically).
+4. Start directly with brief Student Instructions and a concise Concept Refresher (2-3 sentences), followed by the numbered questions.
+5. ${params.includeAnswers
+    ? 'CRITICAL: After all questions, output the exact delimiter line `===ANSWER_KEY===` on its own line, followed by a complete, step-by-step Teacher Answer Key and grading rubric.'
+    : 'Do NOT include an answer key.'}`;
 
-            const userQuery = `Create a complete classroom assignment with the following specifications:
-- **Topic**: ${params.topic}
-- **Grade Level**: ${params.grade}
-- **Difficulty Level**: ${params.difficulty}
-- **Assignment Format**: ${params.format}
-- **Number of Questions**: ${params.numQuestions}
-${params.instructions ? `- **Additional Teacher Notes**: ${params.instructions}` : ''}
+            const userQuery = `Generate an educational assignment with these specifications:
+- Topic: ${params.topic}
+- Grade Level: ${params.grade}
+- Difficulty Level: ${params.difficulty}
+- Assignment Format: ${params.format}
+- Number of Questions: ${params.numQuestions}
+${params.instructions ? `- Additional Focus / Curriculum Notes: ${params.instructions}` : ''}`;
 
-Include a brief, encouraging 2-sentence "Instructions for Students" block at the top, followed by the numbered questions clearly formatted with point values.
-${params.includeAnswers ? 'After ===ANSWER_KEY===, provide a thorough Teacher Answer Key with clear solutions and brief explanations for each question.' : 'After ===ANSWER_KEY===, write "Answer key was not requested for this worksheet."'}`;
-
-            const apiKey = "";
+            const apiKey = state.customApiKey || "";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
             const payload = {
@@ -592,83 +582,103 @@ ${params.includeAnswers ? 'After ===ANSWER_KEY===, provide a thorough Teacher An
             }
 
             try {
-                const result = await fetchWithBackoff(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+                let result;
+                try {
+                    result = await fetchWithBackoff(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                } catch (firstErr) {
+                    // Automatic fallback: If Google Search tool is denied by the API key/environment,
+                    // retry seamlessly without the search tool so assignment generation still succeeds.
+                    const errMsg = (firstErr.message || '').toLowerCase();
+                    if (payload.tools && (errMsg.includes('permission') || errMsg.includes('403') || errMsg.includes('400') || errMsg.includes('denied'))) {
+                        delete payload.tools;
+                        result = await fetchWithBackoff(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        showToast('Web search tool restricted by key—generated using built-in curriculum knowledge.', 'info');
+                    } else {
+                        throw firstErr;
+                    }
+                }
 
                 const candidate = result.candidates?.[0];
-                const rawText = candidate?.content?.parts?.[0]?.text;
+                const rawMarkdown = candidate?.content?.parts?.[0]?.text;
 
-                if (!rawText) {
-                    throw new Error('No assignment content was returned. Please try again.');
+                if (!rawMarkdown) {
+                    throw new Error('No assignment content was returned. Please try refining your topic.');
                 }
 
-                // Extract Web Grounding Sources if available
-                let sources = [];
-                const groundingMetadata = candidate.groundingMetadata;
-                if (groundingMetadata && groundingMetadata.groundingAttributions) {
-                    sources = groundingMetadata.groundingAttributions
-                        .map(attr => ({
-                            uri: attr.web?.uri,
-                            title: attr.web?.title
-                        }))
-                        .filter(s => s.uri && s.title);
-                    // Deduplicate by URI
-                    sources = Array.from(new Map(sources.map(item => [item.uri, item])).values());
-                }
+                // Extract Grounding Web Sources if available
+                const groundingChunks = candidate?.groundingMetadata?.groundingChunks || [];
+                const sources = groundingChunks
+                    .filter(chunk => chunk.web?.uri && chunk.web?.title)
+                    .map(chunk => ({ title: chunk.web.title, uri: chunk.web.uri }));
 
-                // Split Student Worksheet & Answer Key
-                const parts = rawText.split('===ANSWER_KEY===');
-                const questionsMarkdown = parts[0].trim();
-                const answersMarkdown = parts[1] ? parts[1].trim() : '';
+                // Deduplicate sources by URI
+                const uniqueSources = Array.from(new Map(sources.map(s => [s.uri, s])).values());
+
+                // Split Questions and Answer Key
+                const parts = rawMarkdown.split('===ANSWER_KEY===');
+                const questionsMd = parts[0].trim();
+                const answersMd = parts[1] ? parts[1].trim() : '';
 
                 const assignmentObj = {
                     id: Date.now().toString(),
                     createdAt: new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
-                    ...params,
-                    questionsMarkdown,
-                    answersMarkdown,
-                    sources
+                    topic: params.topic,
+                    grade: params.grade,
+                    difficulty: params.difficulty,
+                    format: params.format,
+                    questionsMd,
+                    answersMd,
+                    rawMarkdown,
+                    sources: uniqueSources
                 };
 
                 state.currentAssignment = assignmentObj;
-                state.showAnswerKey = params.includeAnswers;
                 saveToHistory(assignmentObj);
                 renderAssignment(assignmentObj);
                 showToast('Assignment generated successfully!', 'success');
 
             } catch (error) {
+                console.error('Generation Error:', error);
                 els.loadingState.classList.add('hidden');
-                if (!state.currentAssignment) {
-                    els.emptyState.classList.remove('hidden');
-                } else {
-                    els.printableWorksheet.classList.remove('hidden');
-                    els.outputToolbar.classList.remove('hidden');
-                }
+                els.emptyState.classList.remove('hidden');
                 showToast(`Generation failed: ${error.message}`, 'error');
             } finally {
                 els.btnGenerate.disabled = false;
             }
-        });
+        }
 
-        // Render Assignment to Screen
-        function renderAssignment(data) {
-            els.loadingState.classList.add('hidden');
+        // Render Assignment to Worksheet UI
+        function renderAssignment(item) {
             els.emptyState.classList.add('hidden');
+            els.loadingState.classList.add('hidden');
             els.printableWorksheet.classList.remove('hidden');
             els.outputToolbar.classList.remove('hidden');
 
-            els.worksheetTitle.textContent = data.topic;
-            els.metaGrade.textContent = data.grade;
-            els.metaDifficulty.textContent = `${data.difficulty} • ${data.numQuestions} Questions`;
+            els.metaGrade.textContent = item.grade;
+            els.metaDifficulty.textContent = `${item.difficulty} · ${item.format.split('(')[0].trim()}`;
+            els.worksheetTitle.textContent = item.topic;
 
-            // Render Markdown safely via Marked
-            els.worksheetQuestions.innerHTML = marked.parse(data.questionsMarkdown);
-            els.worksheetAnswers.innerHTML = data.answersMarkdown ? marked.parse(data.answersMarkdown) : '';
+            // Parse Markdown safely
+            els.worksheetQuestions.innerHTML = marked.parse(item.questionsMd);
 
-            // Render Math equations with KaTeX if available
+            if (item.answersMd) {
+                els.worksheetAnswers.innerHTML = marked.parse(item.answersMd);
+                els.btnToggleKey.classList.remove('hidden');
+                updateAnswerKeyVisibility();
+            } else {
+                els.answerKeySection.classList.add('hidden');
+                els.btnToggleKey.classList.add('hidden');
+            }
+
+            // Render Math Equations using KaTeX if loaded
             if (window.renderMathInElement) {
                 renderMathInElement(els.printableWorksheet, {
                     delimiters: [
@@ -679,16 +689,13 @@ ${params.includeAnswers ? 'After ===ANSWER_KEY===, provide a thorough Teacher An
                 });
             }
 
-            // Handle Answer Key Visibility
-            updateAnswerKeyVisibility();
-
             // Render Web Grounding Sources
-            if (data.sources && data.sources.length > 0) {
+            if (item.sources && item.sources.length > 0) {
                 els.sourcesCard.classList.remove('hidden');
-                els.sourcesList.innerHTML = data.sources.map(src => `
+                els.sourcesList.innerHTML = item.sources.map(src => `
                     <a href="${src.uri}" target="_blank" rel="noopener noreferrer"
-                       class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-100 hover:bg-brand-50 text-slate-700 hover:text-brand-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition max-w-xs truncate">
-                        <i data-lucide="external-link" class="w-3 h-3 shrink-0 text-brand-500"></i>
+                       class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-100 hover:bg-brand-50 text-slate-700 hover:text-brand-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition max-w-xs truncate">
+                        <i data-lucide="external-link" class="w-3 h-3 shrink-0"></i>
                         <span class="truncate">${src.title}</span>
                     </a>
                 `).join('');
@@ -700,13 +707,7 @@ ${params.includeAnswers ? 'After ===ANSWER_KEY===, provide a thorough Teacher An
         }
 
         function updateAnswerKeyVisibility() {
-            const hasAnswers = state.currentAssignment && state.currentAssignment.answersMarkdown && state.currentAssignment.includeAnswers;
-            if (!hasAnswers) {
-                els.btnToggleKey.classList.add('hidden');
-                els.answerKeySection.classList.add('hidden');
-                return;
-            }
-            els.btnToggleKey.classList.remove('hidden');
+            if (!state.currentAssignment?.answersMd) return;
             if (state.showAnswerKey) {
                 els.answerKeySection.classList.remove('hidden');
                 els.toggleKeyText.textContent = 'Hide Answer Key';
@@ -716,50 +717,15 @@ ${params.includeAnswers ? 'After ===ANSWER_KEY===, provide a thorough Teacher An
             }
         }
 
-        els.btnToggleKey.addEventListener('click', () => {
-            state.showAnswerKey = !state.showAnswerKey;
-            updateAnswerKeyVisibility();
-        });
-
-        // Export & Print Actions
-        els.btnPrint.addEventListener('click', () => {
-            window.print();
-        });
-
-        els.btnCopy.addEventListener('click', () => {
-            if (!state.currentAssignment) return;
-            const fullText = `# ${state.currentAssignment.topic}\n**Grade:** ${state.currentAssignment.grade} | **Difficulty:** ${state.currentAssignment.difficulty}\n\n${state.currentAssignment.questionsMarkdown}${state.showAnswerKey && state.currentAssignment.answersMarkdown ? `\n\n---\n## Answer Key\n\n${state.currentAssignment.answersMarkdown}` : ''}`;
-
-            const textarea = document.createElement('textarea');
-            textarea.value = fullText;
-            document.body.appendChild(textarea);
-            textarea.select();
-            try {
-                document.execCommand('copy');
-                showToast('Assignment copied to clipboard!', 'success');
-            } catch (err) {
-                showToast('Failed to copy text.', 'error');
-            }
-            document.body.removeChild(textarea);
-        });
-
-        els.btnDownloadMd.addEventListener('click', () => {
-            if (!state.currentAssignment) return;
-            const fullText = `# ${state.currentAssignment.topic}\n**Grade:** ${state.currentAssignment.grade} | **Difficulty:** ${state.currentAssignment.difficulty}\n\n${state.currentAssignment.questionsMarkdown}\n\n---\n## Answer Key\n\n${state.currentAssignment.answersMarkdown || ''}`;
-            const blob = new Blob([fullText], { type: 'text/markdown;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${state.currentAssignment.topic.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-assignment.md`;
-            a.click();
-            URL.revokeObjectURL(url);
-            showToast('Downloaded Markdown file!', 'success');
-        });
-
         // LocalStorage History Management (No Firebase needed)
         function saveToHistory(assignment) {
-            state.history = [assignment, ...state.history.filter(item => item.id !== assignment.id)].slice(0, 20);
-            localStorage.setItem('eduforge_history', JSON.stringify(state.history));
+            state.history.unshift(assignment);
+            if (state.history.length > 20) state.history.pop();
+            try {
+                localStorage.setItem('eduforge_history', JSON.stringify(state.history));
+            } catch (e) {
+                console.warn('LocalStorage quota warning:', e);
+            }
             renderHistoryList();
         }
 
@@ -769,50 +735,127 @@ ${params.includeAnswers ? 'After ===ANSWER_KEY===, provide a thorough Teacher An
                 els.historyList.innerHTML = `
                     <div class="text-center py-12 text-slate-400 text-sm">
                         <p>No saved assignments yet.</p>
-                        <p class="text-xs mt-1">Generated assignments are saved automatically in your browser.</p>
+                        <p class="text-xs mt-1">Generated worksheets appear here automatically.</p>
                     </div>`;
                 return;
             }
 
-            els.historyList.innerHTML = state.history.map(item => `
-                <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-brand-400 dark:hover:border-brand-600 bg-slate-50/70 dark:bg-slate-800/40 cursor-pointer transition group"
-                     onclick="loadFromHistory('${item.id}')">
+            els.historyList.innerHTML = state.history.map((item, index) => `
+                <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-brand-400 dark:hover:border-brand-600 bg-slate-50/60 dark:bg-slate-800/40 cursor-pointer transition group"
+                     onclick="loadHistoryItem(${index})">
                     <div class="flex items-start justify-between gap-2">
-                        <h4 class="font-semibold text-sm text-slate-800 dark:text-slate-100 group-hover:text-brand-600 dark:group-hover:text-brand-400 line-clamp-1">${item.topic}</h4>
+                        <h4 class="font-semibold text-sm text-slate-800 dark:text-slate-100 group-hover:text-brand-600 dark:group-hover:text-brand-400 line-clamp-1">
+                            ${item.topic}
+                        </h4>
                         <span class="text-[11px] text-slate-400 shrink-0">${item.createdAt}</span>
                     </div>
-                    <div class="flex items-center gap-2 mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-                        <span class="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">${item.grade.split(' ')[0]} ${item.grade.split(' ')[1] || ''}</span>
-                        <span>•</span>
-                        <span>${item.difficulty.split(' ')[0]}</span>
-                        <span>•</span>
-                        <span>${item.numQuestions} Qs</span>
+                    <div class="flex flex-wrap items-center gap-1.5 mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                        <span class="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">${item.grade.split('(')[0].trim()}</span>
+                        <span class="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">${item.difficulty.split('/')[0].trim()}</span>
                     </div>
                 </div>
             `).join('');
         }
 
-        window.loadFromHistory = function(id) {
-            const found = state.history.find(item => item.id === id);
-            if (found) {
-                state.currentAssignment = found;
-                state.showAnswerKey = found.includeAnswers;
-                els.topic.value = found.topic;
-                els.grade.value = found.grade;
-                els.difficulty.value = found.difficulty;
-                els.format.value = found.format;
-                els.numQuestions.value = found.numQuestions;
-                els.instructions.value = found.instructions || '';
-                renderAssignment(found);
+        window.loadHistoryItem = function(index) {
+            const item = state.history[index];
+            if (item) {
+                state.currentAssignment = item;
+                renderAssignment(item);
                 els.historyDrawer.classList.add('hidden');
-                showToast('Loaded assignment from local history.', 'info');
+                showToast('Loaded assignment from local browser history.', 'info');
             }
         };
 
-        els.btnToggleHistory.addEventListener('click', () => {
-            renderHistoryList();
-            els.historyDrawer.classList.remove('hidden');
+        // Event Listeners
+        els.form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const topicVal = els.topic.value.trim();
+            if (!topicVal) {
+                showToast('Please enter a topic first.', 'error');
+                return;
+            }
+            generateAssignment({
+                topic: topicVal,
+                grade: els.grade.value,
+                difficulty: els.difficulty.value,
+                format: els.format.value,
+                numQuestions: els.numQuestions.value,
+                instructions: els.instructions.value.trim(),
+                useWebSearch: els.useWebSearch.checked,
+                includeAnswers: els.includeAnswers.checked
+            });
         });
+
+        // Sample & Quick Topic Fillers
+        els.btnSample.addEventListener('click', () => {
+            els.topic.value = 'Newton’s Laws of Motion & Free-Body Diagrams';
+            els.grade.value = 'Grade 9-10 (High School)';
+            els.difficulty.value = 'Intermediate / Grade-Level';
+            els.format.value = 'Mixed Worksheet (MCQs, Short Answer & Word Problems)';
+            els.numQuestions.value = '8';
+            els.instructions.value = 'Include real-world elevator and friction word problems.';
+            showToast('Example blueprint filled! Click Generate Assignment.', 'info');
+        });
+
+        document.querySelectorAll('.quick-topic').forEach(btn => {
+            btn.addEventListener('click', () => {
+                els.topic.value = btn.dataset.topic;
+                els.grade.value = btn.dataset.grade;
+                els.difficulty.value = btn.dataset.diff;
+                els.form.dispatchEvent(new Event('submit'));
+            });
+        });
+
+        // Toggle Answer Key
+        els.btnToggleKey.addEventListener('click', () => {
+            state.showAnswerKey = !state.showAnswerKey;
+            updateAnswerKeyVisibility();
+        });
+
+        // Copy Markdown to Clipboard (iFrame safe)
+        els.btnCopy.addEventListener('click', () => {
+            if (!state.currentAssignment) return;
+            const textToCopy = `# ${state.currentAssignment.topic}\n**Grade:** ${state.currentAssignment.grade} | **Difficulty:** ${state.currentAssignment.difficulty}\n\n${state.currentAssignment.questionsMd}${state.showAnswerKey && state.currentAssignment.answersMd ? `\n\n---\n## Teacher Answer Key\n\n${state.currentAssignment.answersMd}` : ''}`;
+
+            const textarea = document.createElement('textarea');
+            textarea.value = textToCopy;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast('Worksheet copied to clipboard!', 'success');
+            } catch (err) {
+                showToast('Unable to copy text.', 'error');
+            }
+            document.body.removeChild(textarea);
+        });
+
+        // Download Markdown File
+        els.btnDownloadMd.addEventListener('click', () => {
+            if (!state.currentAssignment) return;
+            const content = `# ${state.currentAssignment.topic}\n**Grade:** ${state.currentAssignment.grade} | **Difficulty:** ${state.currentAssignment.difficulty}\n\n${state.currentAssignment.questionsMd}${state.currentAssignment.answersMd ? `\n\n---\n## Teacher Answer Key\n\n${state.currentAssignment.answersMd}` : ''}`;
+            const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${state.currentAssignment.topic.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-assignment.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('Markdown file downloaded.', 'success');
+        });
+
+        // Print / Save PDF
+        els.btnPrint.addEventListener('click', () => {
+            window.print();
+        });
+
+        // History Drawer Controls
+        els.btnToggleHistory.addEventListener('click', () => els.historyDrawer.classList.remove('hidden'));
         els.btnCloseHistory.addEventListener('click', () => els.historyDrawer.classList.add('hidden'));
         els.historyBackdrop.addEventListener('click', () => els.historyDrawer.classList.add('hidden'));
         els.btnClearHistory.addEventListener('click', () => {
@@ -820,6 +863,37 @@ ${params.includeAnswers ? 'After ===ANSWER_KEY===, provide a thorough Teacher An
             localStorage.removeItem('eduforge_history');
             renderHistoryList();
             showToast('Local history cleared.', 'info');
+        });
+
+        // Dark Mode Toggle
+        els.btnTheme.addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+        });
+
+        // API Key Modal Listeners
+        els.btnApiSettings.addEventListener('click', () => {
+            els.customApiKeyInput.value = state.customApiKey;
+            els.apiModal.classList.remove('hidden');
+        });
+        els.btnCloseApiModal.addEventListener('click', () => els.apiModal.classList.add('hidden'));
+        els.apiModalBackdrop.addEventListener('click', () => els.apiModal.classList.add('hidden'));
+        els.btnSaveApiKey.addEventListener('click', () => {
+            state.customApiKey = els.customApiKeyInput.value.trim();
+            if (state.customApiKey) {
+                localStorage.setItem('eduforge_api_key', state.customApiKey);
+                showToast('Custom API key saved locally.', 'success');
+            } else {
+                localStorage.removeItem('eduforge_api_key');
+                showToast('Using default runtime API key.', 'info');
+            }
+            els.apiModal.classList.add('hidden');
+        });
+        els.btnClearApiKey.addEventListener('click', () => {
+            state.customApiKey = '';
+            els.customApiKeyInput.value = '';
+            localStorage.removeItem('eduforge_api_key');
+            showToast('Cleared custom API key.', 'info');
+            els.apiModal.classList.add('hidden');
         });
 
         // Initial render of history badge
