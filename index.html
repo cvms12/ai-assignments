@@ -289,6 +289,10 @@
             <!-- Action Toolbar (Shown when assignment exists) -->
             <div id="output-toolbar" class="hidden bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 sm:px-4 flex flex-wrap items-center justify-between gap-2 shadow-sm no-print">
                 <div class="flex items-center gap-2">
+                    <button id="btn-shuffle-regen" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium bg-brand-50 text-brand-700 hover:bg-brand-100 dark:bg-brand-950/60 dark:text-brand-300 dark:hover:bg-brand-900/60 border border-brand-200 dark:border-brand-800 transition" title="Generate a fresh shuffled variant with new questions">
+                        <i data-lucide="shuffle" class="w-4 h-4"></i>
+                        <span>Shuffle & New Set</span>
+                    </button>
                     <button id="btn-toggle-key" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 transition">
                         <i data-lucide="eye" class="w-4 h-4"></i>
                         <span id="toggle-key-text">Hide Answer Key</span>
@@ -491,6 +495,7 @@
             worksheetQuestions: document.getElementById('worksheet-questions'),
             answerKeySection: document.getElementById('answer-key-section'),
             worksheetAnswers: document.getElementById('worksheet-answers'),
+            btnShuffleRegen: document.getElementById('btn-shuffle-regen'),
             btnToggleKey: document.getElementById('btn-toggle-key'),
             toggleKeyText: document.getElementById('toggle-key-text'),
             btnCopy: document.getElementById('btn-copy'),
@@ -530,10 +535,65 @@
         updateEngineBadge();
 
         // Toast Notification System (Replaces alert())
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const colors = {
+                success: 'bg-emerald-600 text-white',
+                error: 'bg-rose-600 text-white',
+                info: 'bg-slate-800 text-white dark:bg-slate-700'
+            };
+            const toast = document.createElement('div');
+            toast.className = `pointer-events-auto px-4 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 transition-all duration-300 transform translate-y-2 opacity-0 ${colors[type] || colors.info}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.remove('translate-y-2', 'opacity-0'));
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // Exponential Backoff Fetch Helper
+        async function fetchWithBackoff(url, options, maxRetries = 3) {
+            let delay = 1000;
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                try {
+                    const response = await fetch(url, options);
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data?.error?.message || `HTTP ${response.status}`);
+                    }
+                    return data;
+                } catch (err) {
+                    if (attempt === maxRetries) throw err;
+                    await new Promise(res => setTimeout(res, delay));
+                    delay *= 2;
+                }
+            }
+        }
+
+        // Track generation count & used question signatures per topic to guarantee fresh questions every time
+        const sessionMemory = {
+            generationCount: 0,
+            usedSignatures: new Set()
+        };
+
+        // Fisher-Yates Array Shuffle
+        function shuffleArray(arr) {
+            const copy = [...arr];
+            for (let i = copy.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [copy[i], copy[j]] = [copy[j], copy[i]];
+            }
+            return copy;
+        }
+
         // =========================================================================
         // 100% KEYLESS OPEN-WEB & PROCEDURAL CURRICULUM ENGINE (NO API KEY NEEDED)
         // =========================================================================
         async function generateKeylessOpenWebAssignment(params) {
+            sessionMemory.generationCount += 1;
+            const variantNum = sessionMemory.generationCount;
             const count = parseInt(params.numQuestions, 10) || 8;
             const topic = params.topic.trim();
             const grade = params.grade;
@@ -541,139 +601,256 @@
             const format = params.format;
             const sources = [];
 
-            // 1. Fetch real educational articles & facts from Wikipedia's free public REST & Search APIs
+            // 1. Fetch deeper, randomized open-web educational extracts from Wikipedia Search + Full Intro/Sections API
             let wikiSummary = '';
+            let deepTextPool = '';
             let relatedArticles = [];
             try {
-                const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(topic)}&format=json&origin=*&srlimit=4`;
+                // Randomize search offset or sub-angle slightly on repeat generations so new articles appear
+                const searchAngles = [topic, `${topic} concepts`, `${topic} applications`, `${topic} principles`];
+                const chosenQuery = variantNum === 1 ? topic : searchAngles[variantNum % searchAngles.length];
+                const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(chosenQuery)}&format=json&origin=*&srlimit=8`;
                 const searchRes = await fetch(searchUrl);
                 const searchData = await searchRes.json();
-                const hits = searchData?.query?.search || [];
+                const hits = shuffleArray(searchData?.query?.search || []);
 
                 if (hits.length > 0) {
-                    const topTitle = hits[0].title;
-                    const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topTitle)}`;
-                    const sumRes = await fetch(summaryUrl);
-                    if (sumRes.ok) {
-                        const sumData = await sumRes.json();
-                        wikiSummary = sumData.extract || '';
-                        if (sumData.content_urls?.desktop?.page) {
-                            sources.push({ title: `Wikipedia: ${sumData.title}`, uri: sumData.content_urls.desktop.page });
-                        }
+                    // Pick primary article + a randomly selected secondary article for rich multi-paragraph text
+                    const primaryHit = hits.find(h => h.title.toLowerCase().includes(topic.toLowerCase())) || hits[0];
+                    const secondaryHit = hits.find(h => h.title !== primaryHit.title) || hits[0];
+
+                    const extractUrl = `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&exchars=4500&titles=${encodeURIComponent(primaryHit.title + '|' + secondaryHit.title)}&format=json&origin=*`;
+                    const extRes = await fetch(extractUrl);
+                    if (extRes.ok) {
+                        const extData = await extRes.json();
+                        const pages = Object.values(extData?.query?.pages || {});
+                        pages.forEach((p, idx) => {
+                            if (p.extract) {
+                                if (idx === 0) wikiSummary = p.extract.split('\n')[0];
+                                deepTextPool += ' ' + p.extract;
+                                sources.push({
+                                    title: `Wikipedia: ${p.title}`,
+                                    uri: `https://en.wikipedia.org/wiki/${encodeURIComponent(p.title.replace(/ /g, '_'))}`
+                                });
+                            }
+                        });
                     }
 
-                    hits.slice(1).forEach(h => {
+                    hits.slice(0, 5).forEach(h => {
                         relatedArticles.push({
                             title: h.title,
                             snippet: h.snippet.replace(/<\/?[^>]+(>|$)/g, '')
                         });
-                        sources.push({
-                            title: `Wikipedia: ${h.title}`,
-                            uri: `https://en.wikipedia.org/wiki/${encodeURIComponent(h.title.replace(/ /g, '_'))}`
-                        });
+                        if (!sources.some(s => s.title.includes(h.title))) {
+                            sources.push({
+                                title: `Wikipedia: ${h.title}`,
+                                uri: `https://en.wikipedia.org/wiki/${encodeURIComponent(h.title.replace(/ /g, '_'))}`
+                            });
+                        }
                     });
                 }
             } catch (e) {
                 console.warn('Open-web Wikipedia fetch skipped:', e);
             }
 
-            // 2. Detect if topic is Math / Algebra / Physics / Arithmetic to generate procedural problems with exact math answers
+            // 2. Detect subject domain for procedural problem synthesis
             const lowerTopic = topic.toLowerCase();
             const isMathTopic = /(equation|algebra|linear|quadratic|fraction|percent|geometry|calculus|trigonometry|ratio|math|polynomial|exponent|probability|statistics)/i.test(lowerTopic);
             const isCodingTopic = /(python|javascript|java|c\+\+|loop|array|function|algorithm|html|css|coding|programming|data structure)/i.test(lowerTopic);
 
-            const questions = [];
-            const answers = [];
-
-            // Helper for random integers scaled by difficulty
+            const qaPairs = [];
             const diffMultiplier = diff.includes('Foundational') ? 1 : diff.includes('Intermediate') ? 2 : diff.includes('Challenging') ? 3 : 5;
             const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
-            // Extract clean factual sentences from Wikipedia summary for comprehension & concept questions
-            const sentences = wikiSummary
+            // Split deep Wikipedia text into dozens of unique candidate sentences and shuffle them!
+            const rawSentences = (deepTextPool || wikiSummary)
+                .replace(/={2,}.*?={2,}/g, ' ')
                 .split(/(?<=[.!?])\s+/)
                 .map(s => s.trim())
-                .filter(s => s.length > 35 && s.length < 260);
+                .filter(s => s.length > 45 && s.length < 280 && !s.includes('ISBN') && !s.includes('doi:'));
 
-            for (let i = 1; i <= count; i++) {
+            const shuffledSentences = shuffleArray(rawSentences);
+            const shuffledRelated = shuffleArray(relatedArticles);
+
+            // Diverse Bloom's Taxonomy question templates so repeated runs generate genuinely new angles
+            const bloomTemplates = shuffleArray([
+                {
+                    label: 'Core Definition & Mechanism',
+                    q: (t, g) => `Define **${t}** in precise academic terms appropriate for **${g}**, and identify two essential components or rules that govern it.`,
+                    a: (t, g) => `*Expected Answer:* A clear definition of **${t}** tailored to ${g}, explicitly naming and explaining two foundational principles or components.`
+                },
+                {
+                    label: 'Cause & Effect Analysis',
+                    q: (t) => `Suppose a key variable or initial condition in **${t}** is doubled or reversed. Predict what happens to the final outcome and justify your reasoning.`,
+                    a: (t) => `*Expected Answer:* Students should trace the direct causal chain in **${t}**, clearly distinguishing proportional vs. inverse or threshold effects.`
+                },
+                {
+                    label: 'Real-World Case Study',
+                    q: (t) => `Describe a real-world technology, natural phenomenon, or historical event where **${t}** plays a decisive role. Explain how the theory applies in practice.`,
+                    a: (t) => `*Expected Answer:* 2 pts for a valid real-world example; 3 pts for accurately mapping theoretical concepts of **${t}** onto the practical scenario.`
+                },
+                {
+                    label: 'Error Detection & Misconception',
+                    q: (t) => `A student claims that **"${t} always produces the exact same result regardless of external conditions."** Critique this statement and explain why it is flawed.`,
+                    a: (t) => `*Expected Answer:* Students should refute the overgeneralization by identifying boundary conditions, constraints, or variables that alter **${t}**.`
+                },
+                {
+                    label: 'Comparative Synthesis',
+                    q: (t) => `Compare and contrast two distinct approaches, stages, or subcategories within **${t}**. Use at least two criteria in your comparison.`,
+                    a: (t) => `*Expected Answer:* Structured comparison highlighting both a shared foundation and a critical structural or functional difference within **${t}**.`
+                },
+                {
+                    label: 'Experimental / Investigative Design',
+                    q: (t) => `Design a mini-experiment, survey, or step-by-step verification method to test a hypothesis related to **${t}**. State your independent and dependent variables.`,
+                    a: (t) => `*Expected Answer:* Clear hypothesis, identifiable independent variable (manipulated), dependent variable (measured), and control condition.`
+                },
+                {
+                    label: 'Quantitative / Structural Reasoning',
+                    q: (t) => `Break down **${t}** into a 3-step sequence or hierarchy. Explain what would fail if Step 2 were omitted.`,
+                    a: (t) => `*Expected Answer:* Logical 3-stage breakdown showing dependency between steps and the specific breakdown caused by skipping the intermediate stage.`
+                },
+                {
+                    label: 'Data & Evidence Evaluation',
+                    q: (t) => `What primary evidence or measurable observation allows scientists, historians, or analysts to verify **${t}**? Give a concrete example.`,
+                    a: (t) => `*Expected Answer:* Identifies empirical indicators or primary metrics used to validate **${t}**.`
+                }
+            ]);
+
+            // Generate a larger candidate pool (count + 4) with unique numbers/sentences, then slice & shuffle
+            for (let i = 0; i < count; i++) {
                 if (isMathTopic) {
-                    // Procedural Math Problem Generator (Infinite unique problems + exact step-by-step solutions)
-                    const a = randInt(2, 5 * diffMultiplier);
-                    const xVal = randInt(-6 * diffMultiplier, 9 * diffMultiplier) || 4;
-                    const b = randInt(-12 * diffMultiplier, 15 * diffMultiplier);
-                    const c = a * xVal + b;
+                    const problemTypes = shuffleArray(['linear', 'quadratic', 'word_rate', 'system_or_ratio', 'inequality']);
+                    const pType = problemTypes[i % problemTypes.length];
 
-                    if (lowerTopic.includes('quadratic') && i % 2 === 0) {
-                        const r1 = randInt(1, 4 * diffMultiplier);
-                        const r2 = randInt(2, 5 * diffMultiplier);
+                    if (pType === 'quadratic' || lowerTopic.includes('quadratic')) {
+                        const r1 = randInt(1, 5 * diffMultiplier);
+                        const r2 = randInt(-4 * diffMultiplier, 6 * diffMultiplier) || 3;
                         const sumB = -(r1 + r2);
                         const prodC = r1 * r2;
-                        const signB = sumB >= 0 ? `+ ${sumB}` : `- ${Math.abs(sumB)}`;
-                        questions.push(`**${i}.** Solve the quadratic equation for $x$ by factoring or using the quadratic formula:\n$$x^2 ${signB}x + ${prodC} = 0$$`);
-                        answers.push(`**${i}.** Factor into $(x - ${r1})(x - ${r2}) = 0$. Setting each factor to zero gives **$x = ${r1}$** and **$x = ${r2}$**.`);
-                    } else if (lowerTopic.includes('percent') || lowerTopic.includes('ratio')) {
-                        const pct = randInt(1, 9) * 10;
-                        const base = randInt(2, 20 * diffMultiplier) * 10;
-                        const resultVal = (pct / 100) * base;
-                        questions.push(`**${i}.** A real-world ${topic} scenario involves finding **${pct}%** of **${base}**. Calculate the exact value and show your steps.`);
-                        answers.push(`**${i}.** Convert ${pct}% to decimal (${pct / 100}) and multiply by ${base}: $${pct / 100} \\times ${base} = \\mathbf{${resultVal}}$.`);
+                        const signB = sumB === 0 ? '' : (sumB > 0 ? `+ ${sumB}x` : `- ${Math.abs(sumB)}x`);
+                        const signC = prodC >= 0 ? `+ ${prodC}` : `- ${Math.abs(prodC)}`;
+                        qaPairs.push({
+                            q: `Solve the quadratic equation for $x$:\n$$x^2 ${signB} ${signC} = 0$$`,
+                            a: `Factor into $(x - ${r1})(x ${r2 >= 0 ? `- ${r2}` : `+ ${Math.abs(r2)}`}) = 0$. Solutions: **$x = ${r1}$** and **$x = ${r2}$**.`
+                        });
+                    } else if (pType === 'word_rate' || lowerTopic.includes('percent') || lowerTopic.includes('ratio')) {
+                        const rate = randInt(12, 45) * diffMultiplier;
+                        const hours = randInt(3, 9);
+                        const initial = randInt(15, 80) * diffMultiplier;
+                        const total = initial + rate * hours;
+                        qaPairs.push({
+                            q: `**Applied Word Problem:** A system modeled by **${topic}** starts at a baseline value of **${initial}** and increases at a constant rate of **${rate}** units per hour. What is the total value after **${hours} hours**, and how many hours would it take to reach **${initial + rate * (hours + 4)}**?`,
+                            a: `After ${hours} hours: $${initial} + (${rate} \\times ${hours}) = \\mathbf{${total}}$. To reach ${initial + rate * (hours + 4)}: $\\frac{${initial + rate * (hours + 4)} - ${initial}}{${rate}} = \\mathbf{${hours + 4}\\text{ hours}}$.`
+                        });
+                    } else if (pType === 'inequality') {
+                        const a = randInt(2, 6 * diffMultiplier);
+                        const xBound = randInt(2, 10 * diffMultiplier);
+                        const b = randInt(1, 15 * diffMultiplier);
+                        const rhs = a * xBound + b;
+                        qaPairs.push({
+                            q: `Solve the inequality for $x$ and state the smallest integer solution:\n$$${a}x + ${b} > ${rhs}$$`,
+                            a: `Subtract ${b}: $${a}x > ${rhs - b} \\implies x > ${xBound}$. Smallest integer solution: **$x = ${xBound + 1}$**.`
+                        });
                     } else {
+                        const a = randInt(2, 6 * diffMultiplier);
+                        const xVal = randInt(-7 * diffMultiplier, 11 * diffMultiplier) || 5;
+                        const b = randInt(-18 * diffMultiplier, 18 * diffMultiplier) || 4;
+                        const c = a * xVal + b;
                         const signB = b >= 0 ? `+ ${b}` : `- ${Math.abs(b)}`;
-                        questions.push(`**${i}.** Solve the equation for $x$ and verify your solution:\n$$${a}x ${signB} = ${c}$$`);
-                        answers.push(`**${i}.** Subtract/add ${Math.abs(b)} on both sides to get $${a}x = ${c - b}$, then divide by ${a} to obtain **$x = ${xVal}$**.`);
+                        qaPairs.push({
+                            q: `Solve for $x$ and verify your answer by substitution:\n$$${a}x ${signB} = ${c}$$`,
+                            a: `Isolate $x$: $${a}x = ${c} - (${b}) = ${c - b} \\implies x = \\frac{${c - b}}{${a}} = \\mathbf{${xVal}}$.`
+                        });
                     }
                 } else if (isCodingTopic) {
-                    // Procedural Computer Science & Coding Exercises
-                    const limit = randInt(4, 8 + diffMultiplier * 2);
+                    const codeVariants = shuffleArray(['trace_loop', 'write_func', 'debug_bug', 'dict_or_array', 'complexity']);
+                    const cType = codeVariants[i % codeVariants.length];
+                    const start = randInt(1, 4);
+                    const limit = randInt(7, 14 + diffMultiplier * 2);
                     const step = randInt(2, 3);
-                    if (i % 3 === 1) {
+                    const mult = randInt(2, 5);
+
+                    if (cType === 'trace_loop') {
                         let out = [];
-                        for (let k = 0; k < limit; k += step) out.push(k);
-                        questions.push(`**${i}.** Trace the following code snippet related to **${topic}** and write its exact console output:\n\`\`\`python\nresult = []\nfor i in range(0, ${limit}, ${step}):\n    result.append(i * 2)\nprint(result)\n\`\`\``);
-                        answers.push(`**${i}.** The loop iterates over \`${JSON.stringify(out)}\` and doubles each element, outputting: **\`${JSON.stringify(out.map(n => n * 2))}\`**.`);
-                    } else if (i % 3 === 2) {
-                        questions.push(`**${i}.** Write a clean, well-commented function applying **${topic}** that takes a list of numbers and returns only values greater than \`${limit * 2}\`.`);
-                        answers.push(`**${i}.** Example solution:\n\`\`\`python\ndef filter_values(items):\n    return [x for x in items if x > ${limit * 2}]\n\`\`\`\n*Grading Rubric:* 2 pts for function signature, 3 pts for conditional filtering, 2 pts for return statement.`);
+                        for (let k = start; k < limit; k += step) out.push(k * mult);
+                        qaPairs.push({
+                            q: `Trace the following **${topic}** snippet and write its exact output:\n\`\`\`python\nvalues = []\nfor n in range(${start}, ${limit}, ${step}):\n    values.append(n * ${mult})\nprint(values)\n\`\`\``,
+                            a: `The loop steps from ${start} to ${limit - 1} by ${step}, multiplying each by ${mult}: **\`${JSON.stringify(out)}\`**.`
+                        });
+                    } else if (cType === 'write_func') {
+                        const threshold = randInt(10, 35 * diffMultiplier);
+                        qaPairs.push({
+                            q: `Write a function using **${topic}** concepts that accepts a list \`nums\` and returns the sum of all even numbers strictly greater than \`${threshold}\`.`,
+                            a: `\`\`\`python\ndef sum_filtered(nums):\n    return sum(x for x in nums if x > ${threshold} and x % 2 == 0)\n\`\`\``
+                        });
+                    } else if (cType === 'dict_or_array') {
+                        const modVal = randInt(2, 4);
+                        qaPairs.push({
+                            q: `Predict how many times \`"hit"\` is printed in this conditional loop:\n\`\`\`python\ncount = 0\nfor i in range(1, ${limit + 3}):\n    if i % ${modVal} == 0:\n        count += 1\nprint(count)\n\`\`\``,
+                            a: `Multiples of ${modVal} between 1 and ${limit + 2}: **\`${Math.floor((limit + 2) / modVal)}\`**.`
+                        });
                     } else {
-                        questions.push(`**${i}.** *Debugging & Analysis (${diff}):* Explain a common runtime or logical bug students encounter when working with **${topic}** and show how to fix it.`);
-                        answers.push(`**${i}.** Common issues include off-by-one boundary conditions or mutating a collection while iterating over it. Using proper bounds checking or list comprehensions prevents unexpected behavior.`);
+                        const tmpl = bloomTemplates[i % bloomTemplates.length];
+                        qaPairs.push({
+                            q: `*${tmpl.label}:* ${tmpl.q(topic, grade)}`,
+                            a: tmpl.a(topic, grade)
+                        });
                     }
                 } else {
-                    // General Subject Generator grounded in live Wikipedia article extracts
-                    const fact = sentences[(i - 1) % Math.max(sentences.length, 1)];
-                    const rel = relatedArticles[(i - 1) % Math.max(relatedArticles.length, 1)];
+                    // Mix fresh Wikipedia sentence analysis, cross-topic connections, and randomized Bloom templates
+                    const sentence = shuffledSentences[i];
+                    const rel = shuffledRelated[i % Math.max(shuffledRelated.length, 1)];
+                    const tmpl = bloomTemplates[i % bloomTemplates.length];
 
-                    if (fact && i <= sentences.length && format.includes('Multiple Choice')) {
-                        const words = fact.split(' ');
-                        const targetIdx = words.findIndex((w, idx) => idx > 3 && w.length > 5 && /^[A-Za-z]+$/.test(w));
-                        const hiddenWord = targetIdx !== -1 ? words[targetIdx] : topic.split(' ')[0];
-                        const blanked = targetIdx !== -1
-                            ? words.map((w, idx) => idx === targetIdx ? '__________' : w).join(' ')
-                            : fact;
-                        questions.push(`**${i}.** Based on open-web reference material on **${topic}**, which term best completes the statement?\n> "${blanked}"\n- A) ${hiddenWord}\n- B) Equilibrium\n- C) Synthesis\n- D) Variable`);
-                        answers.push(`**${i}.** **Correct Answer: A (${hiddenWord})** — Directly verified from the open curriculum summary of *${topic}*.`);
-                    } else if (fact && i % 3 === 1) {
-                        questions.push(`**${i}.** *Concept Comprehension:* Read the reference statement below and explain its significance in your own words (2–3 sentences):\n> "${fact}"`);
-                        answers.push(`**${i}.** *Key Points Expected:* Students should accurately paraphrase the core mechanism/event described in the excerpt and connect it to the broader principles of **${topic}** at a ${grade} level.`);
-                    } else if (rel && i % 3 === 2) {
-                        questions.push(`**${i}.** *Cross-Topic Connection:* How does **${topic}** connect to **${rel.title}**? Use evidence or examples in your response.\n*(Hint context: ${rel.snippet}...)*`);
-                        answers.push(`**${i}.** *Expected Analysis:* Strong responses identify how *${rel.title}* interacts with or builds upon *${topic}*, citing at least one concrete cause-and-effect relationship.`);
+                    if (sentence && (format.includes('Multiple Choice') || i % 3 === 0)) {
+                        // Extract a meaningful keyword from the sentence to build a genuine fill-in/MCQ or comprehension question
+                        const words = sentence.split(/\s+/);
+                        const candidateIndices = words
+                            .map((w, idx) => ({ w: w.replace(/[^A-Za-z]/g, ''), idx }))
+                            .filter(item => item.idx > 2 && item.w.length >= 6 && /^[A-Z]?[a-z]+$/.test(item.w));
+
+                        if (candidateIndices.length > 0 && (format.includes('Multiple Choice') || i % 2 === 0)) {
+                            const chosen = candidateIndices[Math.floor(Math.random() * candidateIndices.length)];
+                            const answerWord = chosen.w;
+                            const blankedSentence = words.map((w, idx) => idx === chosen.idx ? '____________' : w).join(' ');
+                            const distractors = shuffleArray(['Equilibrium', 'Catalysis', 'Hypothesis', 'Synthesis', 'Momentum', 'Diffusion', 'Paradigm', 'Variance']
+                                .filter(d => d.toLowerCase() !== answerWord.toLowerCase())).slice(0, 3);
+                            const options = shuffleArray([answerWord, ...distractors]);
+                            const letters = ['A', 'B', 'C', 'D'];
+                            const correctLetter = letters[options.indexOf(answerWord)];
+
+                            qaPairs.push({
+                                q: `**Open-Web Concept Check:** Which term accurately completes the following statement about **${topic}**?\n> "${blankedSentence}"\n${options.map((opt, idx) => `- **${letters[idx]})** ${opt}`).join('\n')}`,
+                                a: `**Correct Answer: ${correctLetter}) ${answerWord}** — Verified from open reference text: *"${sentence}"*`
+                            });
+                        } else {
+                            qaPairs.push({
+                                q: `**Evidence & Text Analysis:** Read the open-web excerpt below regarding **${topic}** and explain its core implication in 2–3 sentences:\n> "${sentence}"`,
+                                a: `*Key Points Expected:* Accurate restatement of the mechanism/fact in the excerpt and clear connection to **${topic}** for ${grade}.`
+                            });
+                        }
+                    } else if (rel && i % 3 === 1) {
+                        qaPairs.push({
+                            q: `**Cross-Concept Synthesis:** Explain the relationship between **${topic}** and **${rel.title}**.\n*(Reference clue: ${rel.snippet}...)*`,
+                            a: `*Expected Answer:* Explains how **${rel.title}** connects to, influences, or exemplifies **${topic}** with at least one concrete detail.`
+                        });
                     } else {
-                        const promptsByDiff = {
-                            'Foundational / Warm-up': `Define **${topic}** in clear terms and provide one everyday example suitable for ${grade}.`,
-                            'Intermediate / Grade-Level': `Analyze two primary factors or principles that govern **${topic}** and explain how changing one affects the outcome.`,
-                            'Challenging / Analytical': `Evaluate a real-world problem or case study involving **${topic}**. Propose a reasoned solution supported by evidence.`,
-                            'Olympiad / Competition Level': `Synthesize multiple principles of **${topic}** to defend or critique a complex hypothesis, addressing potential counterarguments.`
-                        };
-                        questions.push(`**${i}.** *${diff.split('/')[0].trim()} Application:* ${promptsByDiff[diff] || promptsByDiff['Intermediate / Grade-Level']}`);
-                        answers.push(`**${i}.** *Grading Rubric (10 pts):* 4 pts for accurate terminology related to **${topic}**; 4 pts for logical explanation tailored to ${grade}; 2 pts for clarity and concrete examples.`);
+                        qaPairs.push({
+                            q: `**${tmpl.label}:** ${tmpl.q(topic, grade)}`,
+                            a: tmpl.a(topic, grade)
+                        });
                     }
                 }
             }
 
+            // Always shuffle the final question order so every generation has a distinct sequence
+            const finalShuffled = shuffleArray(qaPairs);
+            const questions = finalShuffled.map((item, idx) => `**${idx + 1}.** ${item.q}`);
+            const answers = finalShuffled.map((item, idx) => `**${idx + 1}.** ${item.a}`);
+
             const introBlock = wikiSummary
-                ? `### Student Instructions & Open-Web Context\nRead the reference overview below and complete all **${count} questions**. Show your reasoning clearly.\n\n> **Open Reference Overview (${topic}):** ${wikiSummary}\n\n---\n\n### Assignment Questions\n\n`
-                : `### Student Instructions\nComplete all **${count} questions** below on **${topic}** (${grade} · ${diff}). Show all work and write in complete sentences where required.\n\n---\n\n### Assignment Questions\n\n`;
+                ? `### Student Instructions & Open-Web Context *(Set #${variantNum})*\nComplete all **${count} shuffled questions** below on **${topic}**. Show all reasoning clearly.\n\n> **Open Reference Overview (${topic}):** ${wikiSummary}\n\n---\n\n### Assignment Questions\n\n`
+                : `### Student Instructions *(Set #${variantNum})*\nComplete all **${count} shuffled questions** below on **${topic}** (${grade} · ${diff}). Show all work and write in complete sentences.\n\n---\n\n### Assignment Questions\n\n`;
 
             const questionsMd = introBlock + questions.join('\n\n');
             const answersMd = params.includeAnswers ? answers.join('\n\n') : '';
@@ -681,7 +858,7 @@
 
             return {
                 id: Date.now().toString(),
-                createdAt: new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+                createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · ' + new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
                 topic: params.topic,
                 grade: params.grade,
                 difficulty: params.difficulty,
@@ -710,7 +887,7 @@
                     state.currentAssignment = assignmentObj;
                     saveToHistory(assignmentObj);
                     renderAssignment(assignmentObj);
-                    showToast('Generated via Free Open-Web Engine (No API Key used)!', 'success');
+                    showToast('Generated fresh shuffled assignment (No API Key used)!', 'success');
                 } catch (err) {
                     els.loadingState.classList.add('hidden');
                     els.emptyState.classList.remove('hidden');
@@ -720,6 +897,11 @@
                 }
                 return;
             }
+
+            const randomSeed = Math.floor(Math.random() * 900000) + 100000;
+            const prevQuestionsHint = state.currentAssignment && state.currentAssignment.topic.toLowerCase() === params.topic.toLowerCase()
+                ? `\nIMPORTANT VARIATION RULE: The user just generated a worksheet on this exact topic. Do NOT reuse any of the previous questions or numbers. Generate a completely fresh, shuffled set of questions (Variation Seed #${randomSeed}) covering different sub-angles and shuffled question types.`
+                : `\nVariation Seed: #${randomSeed} — ensure fresh, randomized question order and varied scenarios.`;
 
             const systemPrompt = `You are an expert curriculum designer and master educator.
 Create a crisp, well-structured student assignment based on the user's topic, grade level, difficulty, and format.
@@ -738,14 +920,17 @@ Rules:
 - Difficulty Level: ${params.difficulty}
 - Assignment Format: ${params.format}
 - Number of Questions: ${params.numQuestions}
-${params.instructions ? `- Additional Focus / Curriculum Notes: ${params.instructions}` : ''}`;
+${params.instructions ? `- Additional Focus / Curriculum Notes: ${params.instructions}` : ''}${prevQuestionsHint}`;
 
             const apiKey = state.customApiKey || "";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
             const payload = {
                 contents: [{ parts: [{ text: userQuery }] }],
-                systemInstruction: { parts: [{ text: systemPrompt }] }
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: {
+                    temperature: 0.95
+                }
             };
 
             if (params.useWebSearch) {
@@ -998,6 +1183,11 @@ ${params.instructions ? `- Additional Focus / Curriculum Notes: ${params.instruc
         els.btnToggleKey.addEventListener('click', () => {
             state.showAnswerKey = !state.showAnswerKey;
             updateAnswerKeyVisibility();
+        });
+
+        // Shuffle & Regenerate New Set Button
+        els.btnShuffleRegen.addEventListener('click', () => {
+            els.form.dispatchEvent(new Event('submit'));
         });
 
         // Copy Markdown to Clipboard (iFrame safe)
